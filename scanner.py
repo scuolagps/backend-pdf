@@ -164,58 +164,65 @@ def genera_pdf():
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-        # --- COSTRUISCI IL NOME DEL FILE IN BASE ALLA FASCIA SCELTA ---
-        if fascia_richiesta:
-            # Se l'utente ha scelto "I fascia", cerchiamo: Risultato_Estrazione_AM56_I fascia.xlsx
-            prefix_da_cercare = f"Risultato_Estrazione_{codice}_{fascia_richiesta}"
-        else:
-            # Se "Tutte le fasce", cerchiamo qualsiasi file che inizia col codice
-            prefix_da_cercare = f"Risultato_Estrazione_{codice}"
-
-        # --- LOGICA: CERCA IL FILE BASANDOSI SUL PREFIX COSTRUITO ---
-        file_trovato = None
-        for f in root_files:
-            # Controlla che il file inizi con il prefix e finisca con .xlsx
-            if f.name.startswith(prefix_da_cercare) and f.name.endswith(".xlsx"):
-                file_trovato = f
-                break # Trovato il primo file corrispondente, esce dal ciclo
+        # Normalizziamo la fascia richiesta per ignorare maiuscole/minuscole e trattini
+        # Es: "II_Fascia" o "II fascia" diventano "II FASCIA"
+        fascia_normalizzata = fascia_richiesta.replace("_", " ").upper().strip() if fascia_richiesta else ""
         
-        if not file_trovato:
+        # --- LOGICA: CERCA TUTTI I FILE CORRISPONDENTI AL CODICE E ALLA FASCIA ---
+        file_da_elaborare = []
+        for f in root_files:
+            # Normalizziamo anche il nome del file su GitHub (maiuscolo e trattini -> spazi)
+            nome_file_norm = f.name.upper().replace("_", " ")
+            
+            # Il file deve contenere il codice (es. "RISULTATO ESTRAZIONE AM56") e finire per ".XLSX"
+            if f"RISULTATO ESTRAZIONE {codice}" in nome_file_norm and f.name.upper().endswith(".XLSX"):
+                # Se l'utente ha scelto una fascia specifica, controlliamo che sia nel nome del file
+                if fascia_normalizzata:
+                    if fascia_normalizzata in nome_file_norm:
+                        file_da_elaborare.append(f)
+                else:
+                    # Se "Tutte le fasce", prende tutti i file di quel codice
+                    file_da_elaborare.append(f)
+        
+        if not file_da_elaborare:
             logger.warning(f"ATTENZIONE: Nessun file trovato per {codice} (Fascia: {fascia_richiesta or 'Tutte'}). Salto.")
             continue
-
-        nome_file = file_trovato.name 
-        
-        # --- NUOVA LOGICA: SCARICA FILE DA GITHUB ---
-        try:
-            logger.info(f"Tentativo di scaricare {nome_file} da GitHub...")
-            file_content = repo.get_contents(nome_file)
-            
-            # Decodifica il contenuto del file (base64) in byte grezzi
-            file_data = file_content.decoded_content
-            
-            # Opzionale: controllo dimensione in memoria
-            if len(file_data) > 10 * 1024 * 1024: # 10 MB
-                logger.warning(f"File {nome_file} troppo grande, superati i 10MB. Salto.")
-                continue
-                
-        except UnknownObjectException:
-            logger.warning(f"ATTENZIONE: File {nome_file} non trovato nella repository GitHub. Salto questa classe.")
-            continue
-        except Exception as e:
-            logger.error(f"Errore nel download del file {nome_file} da GitHub: {str(e)}")
-            continue
-        # -------------------------------------------
 
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Classe di Concorso: {codice}"), ln=True)
         pdf.ln(2)
 
+        nome_file = None
         try:
-            # --- MODIFICA: Legge l'Excel dai byte in memoria (io.BytesIO) invece che dal disco ---
-            excel_io = io.BytesIO(file_data)
-            df = pd.read_excel(excel_io, engine='openpyxl')
+            # Scarichiamo e leggiamo tutti i file trovati, unendoli in un unico DataFrame
+            lista_df = []
+            for file_trovato in file_da_elaborare:
+                nome_file = file_trovato.name
+                try:
+                    logger.info(f"Tentativo di scaricare {file_trovato.name} da GitHub...")
+                    file_content = repo.get_contents(file_trovato.path)
+                    file_data = file_content.decoded_content
+                    
+                    if len(file_data) > 10 * 1024 * 1024: 
+                        logger.warning(f"File {file_trovato.name} troppo grande. Salto.")
+                        continue
+                        
+                    excel_io = io.BytesIO(file_data)
+                    df_temp = pd.read_excel(excel_io, engine='openpyxl')
+                    lista_df.append(df_temp)
+                except Exception as e:
+                    logger.error(f"Errore lettura file {file_trovato.name}: {str(e)}")
+            
+            if not lista_df:
+                pdf.set_font("Arial", 'I', 10)
+                pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Errore lettura file per classe {codice}."), ln=True)
+                pdf.ln(5)
+                continue
+                
+            # Unisce tutti i dati (es. I fascia e II fascia) in un'unica tabella
+            df = pd.concat(lista_df, ignore_index=True)
 
+            # --- DA QUI IN POI IL CODICE RIPRENDE NORMALE ---
             # 1. RIMUOVI COLONNE "Unnamed"
             df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
