@@ -2,7 +2,6 @@ import os
 import re
 import io
 import logging
-from builtins import isinstance
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF
 import pandas as pd
@@ -15,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Origini consentite per l'ambiente di sviluppo locale
 DEFAULT_DEV_ORIGINS = [
     "null", "http://127.0.0.1:5500", "http://localhost:5500",
     "http://127.0.0.1:5000", "http://localhost:5000"
@@ -38,22 +36,17 @@ def add_security_headers(response):
     response.headers["Content-Security-Policy"] = "frame-ancestors 'self' file:// http://127.0.0.1:* http://localhost:*;"
     return response
 
-# --- CONFIGURAZIONE GITHUB ---
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("dati-privati-pdf", "tonecraft17/dati-privati-pdf") # INSERISCI QUI IL NOME DELLA TUA REPO PRIVATA
+REPO_NAME = os.environ.get("REPO_NAME", "TuoUsernameGithub/dati-privati-pdf")
 
-# Inizializza il client Github
 g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
 if not g:
     logger.error("ATTENZIONE: GITHUB_TOKEN non trovato nelle variabili d'ambiente!")
-# ----------------------------
 
 CODICE_CLASSE_PATTERN = re.compile(r'^[A-Z0-9]{1,10}$')
 MAX_CLASSI = 20
-# Rimuoviamo MAX_FILE_SIZE_MB perché leggeremo in memoria, ma possiamo controllare la dimensione del file su github
 MAX_ROWS_PDF = 500
 
-# Dizionario con Sigla -> (Regione, Nome Esteso Provincia)
 PROVINCE_DATA = {
     "AG": ("Sicilia", "Agrigento"), "AL": ("Piemonte", "Alessandria"), "AN": ("Marche", "Ancona"),
     "AO": ("Valle d'Aosta", "Aosta"), "AP": ("Marche", "Ascoli Piceno"), "AT": ("Piemonte", "Asti"),
@@ -92,7 +85,6 @@ PROVINCE_DATA = {
     "VR": ("Veneto", "Verona"), "VV": ("Calabria", "Vibo Valentia"), "VI": ("Veneto", "Vicenza"),
     "VT": ("Lazio", "Viterbo")
 }
-# Dizionario inverso
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
 
 def sanitize_for_fpdf(text):
@@ -116,7 +108,16 @@ def genera_pdf():
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
-    
+
+    # --- DEBUG: COSA ARRIVA DAL SITO ---
+    logger.info("="*50)
+    logger.info(f"DEBUG RICHIESTA RICEVUTA:")
+    logger.info(f"Classi: {classi_selezionate}")
+    logger.info(f"Regioni: {regioni_richieste}")
+    logger.info(f"Province (Nomi): {province_nomi}")
+    logger.info(f"Fascia richiesta: '{fascia_richiesta}'")
+    logger.info("="*50)
+
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
 
@@ -130,10 +131,12 @@ def genera_pdf():
         sigla = PROVINCE_SIGLE.get(prov)
         if sigla:
             province_sigle.append(sigla)
+    
+    # --- DEBUG: CONVERSIONE PROVINCE ---
+    logger.info(f"DEBUG: Sigle province da cercare nell'Excel: {province_sigle}")
 
     codici_validi = []
     for codice in classi_selezionate:
-        # Prende tutto quello che c'è prima del primo trattino (es. "AM56_I fascia")
         identificativo = codice.split(' - ')[0].strip()
         if not identificativo:
             return jsonify({"error": "Uno o più codici classe non sono validi."}), 400
@@ -156,50 +159,51 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     
-    # Recupera la repository privata e l'elenco dei file in root
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = repo.get_contents("")
+        
+        # --- DEBUG: LISTA FILE SU GITHUB ---
+        logger.info("DEBUG: File trovati nella repository GitHub:")
+        for f in root_files:
+            logger.info(f" - {f.name}")
+            
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-        # Normalizziamo la fascia richiesta per ignorare maiuscole/minuscole e trattini
-        # Es: "II_Fascia" o "II fascia" diventano "II FASCIA"
         fascia_normalizzata = fascia_richiesta.replace("_", " ").upper().strip() if fascia_richiesta else ""
-        
-        # --- LOGICA: CERCA TUTTI I FILE CORRISPONDENTI AL CODICE E ALLA FASCIA ---
+        prefix_da_cercare = f"Risultato_Estrazione_{codice}"
+
         file_da_elaborare = []
         for f in root_files:
-            # Normalizziamo anche il nome del file su GitHub (maiuscolo e trattini -> spazi)
             nome_file_norm = f.name.upper().replace("_", " ")
-            
-            # Il file deve contenere il codice (es. "RISULTATO ESTRAZIONE AM56") e finire per ".XLSX"
             if f"RISULTATO ESTRAZIONE {codice}" in nome_file_norm and f.name.upper().endswith(".XLSX"):
-                # Se l'utente ha scelto una fascia specifica, controlliamo che sia nel nome del file
                 if fascia_normalizzata:
                     if fascia_normalizzata in nome_file_norm:
                         file_da_elaborare.append(f)
                 else:
-                    # Se "Tutte le fasce", prende tutti i file di quel codice
                     file_da_elaborare.append(f)
         
+        # --- DEBUG: RISULTATO RICERCA FILE ---
+        logger.info(f"DEBUG RICERCA FILE per codice {codice} e fascia '{fascia_richiesta}':")
+        if file_da_elaborare:
+            logger.info(f"Trovati {len(file_da_elaborare)} file: {[f.name for f in file_da_elaborare]}")
+        else:
+            logger.warning(f"NESSUN file trovato per codice {codice} e fascia '{fascia_richiesta}'")
+
         if not file_da_elaborare:
-            logger.warning(f"ATTENZIONE: Nessun file trovato per {codice} (Fascia: {fascia_richiesta or 'Tutte'}). Salto.")
             continue
 
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Classe di Concorso: {codice}"), ln=True)
         pdf.ln(2)
 
-        nome_file = None
         try:
-            # Scarichiamo e leggiamo tutti i file trovati, unendoli in un unico DataFrame
             lista_df = []
             for file_trovato in file_da_elaborare:
-                nome_file = file_trovato.name
                 try:
-                    logger.info(f"Tentativo di scaricare {file_trovato.name} da GitHub...")
+                    logger.info(f"DEBUG: Tentativo download {file_trovato.name}...")
                     file_content = repo.get_contents(file_trovato.path)
                     file_data = file_content.decoded_content
                     
@@ -209,39 +213,48 @@ def genera_pdf():
                         
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
+                    
+                    # --- DEBUG: COLONNE TROVATE NELL'EXCEL ---
+                    logger.info(f"DEBUG: Colonne trovate in {file_trovato.name}: {list(df_temp.columns)}")
+                    logger.info(f"DEBUG: Numero righe totali lette: {len(df_temp)}")
+                    
                     lista_df.append(df_temp)
                 except Exception as e:
                     logger.error(f"Errore lettura file {file_trovato.name}: {str(e)}")
             
             if not lista_df:
-                pdf.set_font("Arial", 'I', 10)
-                pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Errore lettura file per classe {codice}."), ln=True)
-                pdf.ln(5)
                 continue
                 
-            # Unisce tutti i dati (es. I fascia e II fascia) in un'unica tabella
             df = pd.concat(lista_df, ignore_index=True)
-
-            # --- DA QUI IN POI IL CODICE RIPRENDE NORMALE ---
-            # 1. RIMUOVI COLONNE "Unnamed"
             df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
             if province_sigle:
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                
+                # --- DEBUG: COLONNA UFFICIO TROVATA ---
+                logger.info(f"DEBUG: Colonna Ufficio/Provincia identificata: '{col_ufficio}'")
+                
                 if col_ufficio:
-                    df = df[df[col_ufficio].astype(str).str.strip().str.upper().isin(province_sigle)]
-                    df = df[df[col_ufficio].astype(str).str.strip().str.len() == 2]
+                    df[col_ufficio] = df[col_ufficio].astype(str).str.strip().str.upper()
+                    # --- DEBUG: VALORI UNICI NELLA COLONNA UFFICIO (primi 20) ---
+                    logger.info(f"DEBUG: Valori unici in {col_ufficio}: {df[col_ufficio].unique()[:20]}")
                     
-                    df['TEMP_REGIONE'] = df[col_ufficio].astype(str).str.strip().str.upper().map(lambda x: PROVINCE_DATA.get(x, ("ZZZ", ""))[0])
-                    df = df.sort_values(by=['TEMP_REGIONE', col_ufficio])
-                    df = df.drop(columns=['TEMP_REGIONE'])
+                    df = df[df[col_ufficio].isin(province_sigle)]
+                    df = df[df[col_ufficio].str.len() == 2]
+                    
+                    # --- DEBUG: QUANTE RIGHE SONO SOPRAVVISSUTE AL FILTRO PROVINCIA ---
+                    logger.info(f"DEBUG: Righe rimaste dopo il filtro provincia ({province_sigle}): {len(df)}")
                 else:
+                    logger.warning("DEBUG: Colonna Ufficio/Provincia NON trovata! Il filtro provincia non può essere applicato.")
                     df = pd.DataFrame()
+            else:
+                logger.info("DEBUG: Nessuna provincia richiesta, salto il filtro provincia.")
 
             if df.empty:
                 pdf.set_font("Arial", 'I', 10)
                 pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Nessun risultato trovato per {codice} nelle province selezionate."), ln=True)
                 pdf.ln(5)
+                logger.warning(f"DEBUG: DataFrame vuoto dopo i filtri per {codice}. Salto stampa tabella.")
                 continue
 
             if len(df) > MAX_ROWS_PDF:
@@ -249,7 +262,6 @@ def genera_pdf():
                 pdf.set_font("Arial", 'I', 8)
                 pdf.cell(0, 6, txt=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), ln=True)
 
-            # --- PULIZIA COLONNE INUTILI ---
             def is_empty(val):
                 v = str(val).strip().lower()
                 return v in ['nan', '*', 'none', '', '-']
@@ -263,7 +275,6 @@ def genera_pdf():
                     cols_to_drop.append(col)
             df = df.drop(columns=cols_to_drop)
 
-            # --- FUNZIONE FORMATTAZIONE VALORI ---
             def format_val(val):
                 s = str(val).strip()
                 if s.lower() in ['nan', 'none', ''] or s == '*':
@@ -277,7 +288,6 @@ def genera_pdf():
                         pass
                 return s
 
-            # --- CALCOLO DINAMICO LARGHEZZE COLONNE ---
             col_widths = {}
             total_width = 0
             for col in df.columns:
@@ -288,7 +298,6 @@ def genera_pdf():
                         max_len = len(val_str)
                 
                 width = min(max_len * 2.2, 50)
-                
                 if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']:
                     width = 20 
                 if str(col).upper() in ['COGNOME', 'NOME']:
@@ -308,7 +317,6 @@ def genera_pdf():
                 for col in col_widths:
                     col_widths[col] *= scale
 
-            # --- INTESTAZIONI TABELLA (Altezza Uniforme) ---
             pdf.set_font("Arial", 'B', 9)
             line_height = 5
             
@@ -347,7 +355,6 @@ def genera_pdf():
 
             draw_table_header()
 
-            # --- RIGHE DI DATI CON INTESTAZIONE REGIONE/PROVINCIA ---
             col_ufficio_sep = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
             current_prov_sigla = None
             current_region = None
@@ -397,13 +404,14 @@ def genera_pdf():
             trovato_almeno_uno = True
 
         except Exception as e:
-            logger.error(f"Errore elaborazione file {nome_file}: {str(e)}")
+            logger.error(f"Errore elaborazione file: {str(e)}")
             pdf.set_font("Arial", 'I', 10)
             pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), ln=True)
             pdf.ln(5)
 
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
+        logger.warning("DEBUG: PDF generato vuoto (nessun dato trovato in nessuna classe elaborata).")
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
