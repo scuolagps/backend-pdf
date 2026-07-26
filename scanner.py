@@ -168,7 +168,7 @@ def genera_pdf():
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-        # --- NUOVA LOGICA DI RICERCA INFALLIBILE E PRECISA ---
+               # --- NUOVA LOGICA DI RICERCA INFALLIBILE E PRECISA ---
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_norm = normalize_string(codice)
         
@@ -176,7 +176,7 @@ def genera_pdf():
         for f in root_files:
             nome_file_norm = normalize_string(f.name)
             # Cerca "RISULTATOESTRAZIONEAM56" e ".XLSX"
-            if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith("XLSX"):
+            if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith(".XLSX"):
                 if fascia_norm:
                     # PER EVITARE CHE "IFASCIA" TROVI ANCHE "IIFASCIA", 
                     # CONTROLLIAMO CHE IL FILE FINISCA ESATTAMENTE CON "FASCIA.XLSX"
