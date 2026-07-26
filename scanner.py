@@ -2,6 +2,7 @@ import os
 import re
 import io
 import logging
+from builtins import isinstance
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF
 import pandas as pd
@@ -39,7 +40,7 @@ def add_security_headers(response):
 
 # --- CONFIGURAZIONE GITHUB ---
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("REPO_NAME", "TuoUsernameGithub/dati-privati-pdf") # INSERISCI QUI IL NOME DELLA TUA REPO PRIVATA
+REPO_NAME = os.environ.get("dati-privati-pdf", "tonecraft17/dati-privati-pdf") # INSERISCI QUI IL NOME DELLA TUA REPO PRIVATA
 
 # Inizializza il client Github
 g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
@@ -114,6 +115,7 @@ def genera_pdf():
     classi_selezionate = data.get('classi')
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
+    fascia_richiesta = data.get('fascia', '').strip()
     
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
@@ -131,10 +133,11 @@ def genera_pdf():
 
     codici_validi = []
     for codice in classi_selezionate:
-        codice_pulito = codice.strip().split(' ')[0]
-        if not CODICE_CLASSE_PATTERN.match(codice_pulito):
+        # Prende tutto quello che c'è prima del primo trattino (es. "AM56_I fascia")
+        identificativo = codice.split(' - ')[0].strip()
+        if not identificativo:
             return jsonify({"error": "Uno o più codici classe non sono validi."}), 400
-        codici_validi.append(codice_pulito)
+        codici_validi.append(identificativo)
 
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -153,14 +156,35 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     
-    # Recupera la repository privata
+    # Recupera la repository privata e l'elenco dei file in root
     try:
         repo = g.get_repo(REPO_NAME)
+        root_files = repo.get_contents("")
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-        nome_file = f"Risultato_Estrazione_{codice}.xlsx"
+        # --- COSTRUISCI IL NOME DEL FILE IN BASE ALLA FASCIA SCELTA ---
+        if fascia_richiesta:
+            # Se l'utente ha scelto "I fascia", cerchiamo: Risultato_Estrazione_AM56_I fascia.xlsx
+            prefix_da_cercare = f"Risultato_Estrazione_{codice}_{fascia_richiesta}"
+        else:
+            # Se "Tutte le fasce", cerchiamo qualsiasi file che inizia col codice
+            prefix_da_cercare = f"Risultato_Estrazione_{codice}"
+
+        # --- LOGICA: CERCA IL FILE BASANDOSI SUL PREFIX COSTRUITO ---
+        file_trovato = None
+        for f in root_files:
+            # Controlla che il file inizi con il prefix e finisca con .xlsx
+            if f.name.startswith(prefix_da_cercare) and f.name.endswith(".xlsx"):
+                file_trovato = f
+                break # Trovato il primo file corrispondente, esce dal ciclo
+        
+        if not file_trovato:
+            logger.warning(f"ATTENZIONE: Nessun file trovato per {codice} (Fascia: {fascia_richiesta or 'Tutte'}). Salto.")
+            continue
+
+        nome_file = file_trovato.name 
         
         # --- NUOVA LOGICA: SCARICA FILE DA GITHUB ---
         try:
