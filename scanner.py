@@ -180,7 +180,7 @@ def genera_pdf():
                 if fascia_norm:
                     # PER EVITARE CHE "IFASCIA" TROVI ANCHE "IIFASCIA", 
                     # CONTROLLIAMO CHE IL FILE FINISCA ESATTAMENTE CON "FASCIA.XLSX"
-                    if nome_file_norm.endswith(fascia_norm + "XLSX"):
+                    if nome_file_norm.endswith(fascia_norm + ".XLSX"):
                         file_da_elaborare.append(f)
                 else:
                     # Se "Tutte le fasce", prende tutti i file di quel codice
