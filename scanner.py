@@ -178,9 +178,11 @@ def genera_pdf():
             # Cerca "RISULTATOESTRAZIONEAM56" e ".XLSX"
             if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith(".XLSX"):
                 if fascia_norm:
-                    # PER EVITARE CHE "IFASCIA" TROVI ANCHE "IIFASCIA", 
-                    # CONTROLLIAMO CHE IL FILE FINISCA ESATTAMENTE CON "FASCIA.XLSX"
-                    if nome_file_norm.endswith(fascia_norm + ".XLSX"):
+                    # MAGIA LOGICA: Dividiamo il nome del file usando il codice (es. "AM56")
+                    # la parte a destra sarà "IFASCIA.XLSX" o "IIFASCIA.XLSX"
+                    # e verifico che sia ESATTAMENTE uguale a "FASCIA.XLSX"
+                    parte_dopo_codice = nome_file_norm.split(codice_norm)[1]
+                    if parte_dopo_codice == fascia_norm + ".XLSX":
                         file_da_elaborare.append(f)
                 else:
                     # Se "Tutte le fasce", prende tutti i file di quel codice
