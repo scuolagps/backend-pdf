@@ -8,7 +8,6 @@ import pandas as pd
 from github import Github
 from github.GithubException import UnknownObjectException
 
-# Configurazione del logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -92,6 +91,11 @@ def sanitize_for_fpdf(text):
         text = str(text)
     return text.encode('latin-1', 'replace').decode('latin-1')
 
+# --- FUNZIONE MAGICA PER NORMALIZZARE I NOMI ---
+def normalize_string(s):
+    # Rimuove TUTTI gli spazi, trattini bassi _, trattini normali - e converte in maiuscolo
+    return re.sub(r'[\s_-]+', '', str(s)).upper()
+
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
     if request.method == 'OPTIONS':
@@ -109,7 +113,6 @@ def genera_pdf():
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
 
-    # --- DEBUG: COSA ARRIVA DAL SITO ---
     logger.info("="*50)
     logger.info(f"DEBUG RICHIESTA RICEVUTA:")
     logger.info(f"Classi: {classi_selezionate}")
@@ -132,7 +135,6 @@ def genera_pdf():
         if sigla:
             province_sigle.append(sigla)
     
-    # --- DEBUG: CONVERSIONE PROVINCE ---
     logger.info(f"DEBUG: Sigle province da cercare nell'Excel: {province_sigle}")
 
     codici_validi = []
@@ -162,30 +164,28 @@ def genera_pdf():
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = repo.get_contents("")
-        
-        # --- DEBUG: LISTA FILE SU GITHUB ---
-        logger.info("DEBUG: File trovati nella repository GitHub:")
-        for f in root_files:
-            logger.info(f" - {f.name}")
-            
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-        fascia_normalizzata = fascia_richiesta.replace("_", " ").upper().strip() if fascia_richiesta else ""
-        prefix_da_cercare = f"Risultato_Estrazione_{codice}"
-
+        # --- NUOVA LOGICA DI RICERCA INFALLIBILE E PRECISA ---
+        fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
+        codice_norm = normalize_string(codice)
+        
         file_da_elaborare = []
         for f in root_files:
-            nome_file_norm = f.name.upper().replace("_", " ")
-            if f"RISULTATO ESTRAZIONE {codice}" in nome_file_norm and f.name.upper().endswith(".XLSX"):
-                if fascia_normalizzata:
-                    if fascia_normalizzata in nome_file_norm:
+            nome_file_norm = normalize_string(f.name)
+            # Cerca "RISULTATOESTRAZIONEAM56" e ".XLSX"
+            if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith("XLSX"):
+                if fascia_norm:
+                    # PER EVITARE CHE "IFASCIA" TROVI ANCHE "IIFASCIA", 
+                    # CONTROLLIAMO CHE IL FILE FINISCA ESATTAMENTE CON "FASCIA.XLSX"
+                    if nome_file_norm.endswith(fascia_norm + "XLSX"):
                         file_da_elaborare.append(f)
                 else:
+                    # Se "Tutte le fasce", prende tutti i file di quel codice
                     file_da_elaborare.append(f)
         
-        # --- DEBUG: RISULTATO RICERCA FILE ---
         logger.info(f"DEBUG RICERCA FILE per codice {codice} e fascia '{fascia_richiesta}':")
         if file_da_elaborare:
             logger.info(f"Trovati {len(file_da_elaborare)} file: {[f.name for f in file_da_elaborare]}")
@@ -214,7 +214,6 @@ def genera_pdf():
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
-                    # --- DEBUG: COLONNE TROVATE NELL'EXCEL ---
                     logger.info(f"DEBUG: Colonne trovate in {file_trovato.name}: {list(df_temp.columns)}")
                     logger.info(f"DEBUG: Numero righe totali lette: {len(df_temp)}")
                     
@@ -230,19 +229,14 @@ def genera_pdf():
 
             if province_sigle:
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
-                
-                # --- DEBUG: COLONNA UFFICIO TROVATA ---
                 logger.info(f"DEBUG: Colonna Ufficio/Provincia identificata: '{col_ufficio}'")
                 
                 if col_ufficio:
                     df[col_ufficio] = df[col_ufficio].astype(str).str.strip().str.upper()
-                    # --- DEBUG: VALORI UNICI NELLA COLONNA UFFICIO (primi 20) ---
                     logger.info(f"DEBUG: Valori unici in {col_ufficio}: {df[col_ufficio].unique()[:20]}")
                     
                     df = df[df[col_ufficio].isin(province_sigle)]
                     df = df[df[col_ufficio].str.len() == 2]
-                    
-                    # --- DEBUG: QUANTE RIGHE SONO SOPRAVVISSUTE AL FILTRO PROVINCIA ---
                     logger.info(f"DEBUG: Righe rimaste dopo il filtro provincia ({province_sigle}): {len(df)}")
                 else:
                     logger.warning("DEBUG: Colonna Ufficio/Provincia NON trovata! Il filtro provincia non può essere applicato.")
