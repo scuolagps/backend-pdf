@@ -91,9 +91,7 @@ def sanitize_for_fpdf(text):
         text = str(text)
     return text.encode('latin-1', 'replace').decode('latin-1')
 
-# --- FUNZIONE MAGICA PER NORMALIZZARE I NOMI ---
 def normalize_string(s):
-    # Rimuove TUTTI gli spazi, trattini bassi _, trattini normali - e converte in maiuscolo
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
@@ -113,17 +111,8 @@ def genera_pdf():
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
 
-    logger.info("="*50)
-    logger.info(f"DEBUG RICHIESTA RICEVUTA:")
-    logger.info(f"Classi: {classi_selezionate}")
-    logger.info(f"Regioni: {regioni_richieste}")
-    logger.info(f"Province (Nomi): {province_nomi}")
-    logger.info(f"Fascia richiesta: '{fascia_richiesta}'")
-    logger.info("="*50)
-
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
-
     if not isinstance(classi_selezionate, list) or not classi_selezionate:
         return jsonify({"error": "Nessuna classe selezionata."}), 400
     if len(classi_selezionate) > MAX_CLASSI:
@@ -134,8 +123,6 @@ def genera_pdf():
         sigla = PROVINCE_SIGLE.get(prov)
         if sigla:
             province_sigle.append(sigla)
-    
-    logger.info(f"DEBUG: Sigle province da cercare nell'Excel: {province_sigle}")
 
     codici_validi = []
     for codice in classi_selezionate:
@@ -168,31 +155,19 @@ def genera_pdf():
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     for codice in codici_validi:
-               # --- NUOVA LOGICA DI RICERCA INFALLIBILE E PRECISA ---
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_norm = normalize_string(codice)
         
         file_da_elaborare = []
         for f in root_files:
             nome_file_norm = normalize_string(f.name)
-            # Cerca "RISULTATOESTRAZIONEAM56" e ".XLSX"
             if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith(".XLSX"):
                 if fascia_norm:
-                    # MAGIA LOGICA: Dividiamo il nome del file usando il codice (es. "AM56")
-                    # la parte a destra sarà "IFASCIA.XLSX" o "IIFASCIA.XLSX"
-                    # e verifico che sia ESATTAMENTE uguale a "FASCIA.XLSX"
                     parte_dopo_codice = nome_file_norm.split(codice_norm)[1]
                     if parte_dopo_codice == fascia_norm + ".XLSX":
                         file_da_elaborare.append(f)
                 else:
-                    # Se "Tutte le fasce", prende tutti i file di quel codice
                     file_da_elaborare.append(f)
-        
-        logger.info(f"DEBUG RICERCA FILE per codice {codice} e fascia '{fascia_richiesta}':")
-        if file_da_elaborare:
-            logger.info(f"Trovati {len(file_da_elaborare)} file: {[f.name for f in file_da_elaborare]}")
-        else:
-            logger.warning(f"NESSUN file trovato per codice {codice} e fascia '{fascia_richiesta}'")
 
         if not file_da_elaborare:
             continue
@@ -202,10 +177,10 @@ def genera_pdf():
         pdf.ln(2)
 
         try:
-            lista_df = []
+            # Scarichiamo tutti i file trovati
+            lista_dati = []
             for file_trovato in file_da_elaborare:
                 try:
-                    logger.info(f"DEBUG: Tentativo download {file_trovato.name}...")
                     file_content = repo.get_contents(file_trovato.path)
                     file_data = file_content.decoded_content
                     
@@ -216,188 +191,185 @@ def genera_pdf():
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
-                    logger.info(f"DEBUG: Colonne trovate in {file_trovato.name}: {list(df_temp.columns)}")
-                    logger.info(f"DEBUG: Numero righe totali lette: {len(df_temp)}")
-                    
-                    lista_df.append(df_temp)
+                    # Estrai il nome della fascia dal nome del file
+                    # Es: "Risultato_Estrazione_AM56_I fascia.xlsx" -> "I FASCIA"
+                    fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").strip().upper()
+                    if not fascia_nome:
+                        fascia_nome = "DETTAGLI"
+                        
+                    lista_dati.append((df_temp, fascia_nome))
                 except Exception as e:
                     logger.error(f"Errore lettura file {file_trovato.name}: {str(e)}")
             
-            if not lista_df:
-                continue
-                
-            df = pd.concat(lista_df, ignore_index=True)
-            df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
-
-            if province_sigle:
-                col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
-                logger.info(f"DEBUG: Colonna Ufficio/Provincia identificata: '{col_ufficio}'")
-                
-                if col_ufficio:
-                    df[col_ufficio] = df[col_ufficio].astype(str).str.strip().str.upper()
-                    logger.info(f"DEBUG: Valori unici in {col_ufficio}: {df[col_ufficio].unique()[:20]}")
-                    
-                    df = df[df[col_ufficio].isin(province_sigle)]
-                    df = df[df[col_ufficio].str.len() == 2]
-                    logger.info(f"DEBUG: Righe rimaste dopo il filtro provincia ({province_sigle}): {len(df)}")
-                else:
-                    logger.warning("DEBUG: Colonna Ufficio/Provincia NON trovata! Il filtro provincia non può essere applicato.")
-                    df = pd.DataFrame()
-            else:
-                logger.info("DEBUG: Nessuna provincia richiesta, salto il filtro provincia.")
-
-            if df.empty:
-                pdf.set_font("Arial", 'I', 10)
-                pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Nessun risultato trovato per {codice} nelle province selezionate."), ln=True)
-                pdf.ln(5)
-                logger.warning(f"DEBUG: DataFrame vuoto dopo i filtri per {codice}. Salto stampa tabella.")
+            if not lista_dati:
                 continue
 
-            if len(df) > MAX_ROWS_PDF:
-                df = df.head(MAX_ROWS_PDF)
-                pdf.set_font("Arial", 'I', 8)
-                pdf.cell(0, 6, txt=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), ln=True)
+            # Elaboriamo un file (e quindi una fascia) alla volta
+            for df, nome_fascia in lista_dati:
+                df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
-            def is_empty(val):
-                v = str(val).strip().lower()
-                return v in ['nan', '*', 'none', '', '-']
-            
-            cols_to_drop = []
-            for col in df.columns:
-                unique_vals = [val for val in df[col].unique() if not is_empty(val)]
-                if len(unique_vals) <= 1:
-                    cols_to_drop.append(col)
-                if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
-                    cols_to_drop.append(col)
-            df = df.drop(columns=cols_to_drop)
-
-            def format_val(val):
-                s = str(val).strip()
-                if s.lower() in ['nan', 'none', ''] or s == '*':
-                    return "-"
-                if s.endswith('.0'):
-                    try:
-                        f = float(s)
-                        if f.is_integer():
-                            return str(int(f))
-                    except ValueError:
-                        pass
-                return s
-
-            col_widths = {}
-            total_width = 0
-            for col in df.columns:
-                max_len = len(str(col))
-                for val in df[col].head(100):
-                    val_str = format_val(val)
-                    if len(val_str) > max_len:
-                        max_len = len(val_str)
-                
-                width = min(max_len * 2.2, 50)
-                if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']:
-                    width = 20 
-                if str(col).upper() in ['COGNOME', 'NOME']:
-                    width = max(width, 35)
-                if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper():
-                    width = max(width, 25)
-                if 'POSIZIONE' in str(col).upper():
-                    width = max(width, 20)
-                    
-                width = max(width, 15)
-                col_widths[col] = width
-                total_width += width
-
-            page_width = 277
-            if total_width > page_width:
-                scale = page_width / total_width
-                for col in col_widths:
-                    col_widths[col] *= scale
-
-            pdf.set_font("Arial", 'B', 9)
-            line_height = 5
-            
-            max_lines = 1
-            header_lines_map = {}
-            for col in df.columns:
-                char_limit = max(1, int(col_widths[col] / 1.8))
-                text = sanitize_for_fpdf(str(col))
-                lines = 0
-                current_line_len = 0
-                for word in text.split():
-                    if current_line_len + len(word) + 1 > char_limit:
-                        lines += 1
-                        current_line_len = len(word)
+                if province_sigle:
+                    col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                    if col_ufficio:
+                        df[col_ufficio] = df[col_ufficio].astype(str).str.strip().str.upper()
+                        df = df[df[col_ufficio].isin(province_sigle)]
+                        df = df[df[col_ufficio].str.len() == 2]
                     else:
-                        current_line_len += len(word) + 1
-                if current_line_len > 0 or lines == 0:
-                    lines += 1
-                header_lines_map[col] = lines
-                if lines > max_lines:
-                    max_lines = lines
+                        df = pd.DataFrame()
 
-            max_header_height = max_lines * line_height
+                if df.empty:
+                    continue
 
-            def draw_table_header():
-                y_start = pdf.get_y()
+                # --- INTESTAZIONE FASCIA ---
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 10, txt=sanitize_for_fpdf(nome_fascia), ln=True, align='L')
+                pdf.ln(2)
+
+                if len(df) > MAX_ROWS_PDF:
+                    df = df.head(MAX_ROWS_PDF)
+                    pdf.set_font("Arial", 'I', 8)
+                    pdf.cell(0, 6, txt=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), ln=True)
+
+                def is_empty(val):
+                    v = str(val).strip().lower()
+                    return v in ['nan', '*', 'none', '', '-']
+                
+                cols_to_drop = []
                 for col in df.columns:
-                    x_start = pdf.get_x()
+                    unique_vals = [val for val in df[col].unique() if not is_empty(val)]
+                    if len(unique_vals) <= 1:
+                        cols_to_drop.append(col)
+                    if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
+                        cols_to_drop.append(col)
+                df = df.drop(columns=cols_to_drop)
+
+                def format_val(val):
+                    s = str(val).strip()
+                    if s.lower() in ['nan', 'none', ''] or s == '*':
+                        return "-"
+                    if s.endswith('.0'):
+                        try:
+                            f = float(s)
+                            if f.is_integer():
+                                return str(int(f))
+                        except ValueError:
+                            pass
+                    return s
+
+                col_widths = {}
+                total_width = 0
+                for col in df.columns:
+                    max_len = len(str(col))
+                    for val in df[col].head(100):
+                        val_str = format_val(val)
+                        if len(val_str) > max_len:
+                            max_len = len(val_str)
+                    
+                    width = min(max_len * 2.2, 50)
+                    if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']:
+                        width = 20 
+                    if str(col).upper() in ['COGNOME', 'NOME']:
+                        width = max(width, 35)
+                    if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper():
+                        width = max(width, 25)
+                    if 'POSIZIONE' in str(col).upper():
+                        width = max(width, 20)
+                        
+                    width = max(width, 15)
+                    col_widths[col] = width
+                    total_width += width
+
+                page_width = 277
+                if total_width > page_width:
+                    scale = page_width / total_width
+                    for col in col_widths:
+                        col_widths[col] *= scale
+
+                pdf.set_font("Arial", 'B', 9)
+                line_height = 5
+                
+                max_lines = 1
+                header_lines_map = {}
+                for col in df.columns:
+                    char_limit = max(1, int(col_widths[col] / 1.8))
                     text = sanitize_for_fpdf(str(col))
-                    lines_needed = max_lines - header_lines_map[col]
-                    if lines_needed > 0:
-                        text += "\n" * lines_needed
-                    pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
-                    pdf.set_xy(x_start + col_widths[col], y_start)
-                pdf.set_y(y_start + max_header_height)
+                    lines = 0
+                    current_line_len = 0
+                    for word in text.split():
+                        if current_line_len + len(word) + 1 > char_limit:
+                            lines += 1
+                            current_line_len = len(word)
+                        else:
+                            current_line_len += len(word) + 1
+                    if current_line_len > 0 or lines == 0:
+                        lines += 1
+                    header_lines_map[col] = lines
+                    if lines > max_lines:
+                        max_lines = lines
 
-            draw_table_header()
+                max_header_height = max_lines * line_height
 
-            col_ufficio_sep = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
-            current_prov_sigla = None
-            current_region = None
-            
-            pdf.set_font("Arial", size=9)
-            for _, row in df.iterrows():
-                if col_ufficio_sep:
-                    prov_sigla = format_val(row[col_ufficio_sep]).upper()
-                    if prov_sigla != current_prov_sigla:
-                        current_prov_sigla = prov_sigla
-                        region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
-                        
-                        if pdf.get_y() + 20 > 190:
-                            pdf.add_page()
-                            draw_table_header()
-                        
-                        pdf.ln(4)
-                        
-                        if region_name and region_name != current_region:
-                            current_region = region_name
-                            pdf.set_font("Arial", 'B', 12) 
-                            pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
-                        
-                        if prov_full_name:
-                            pdf.set_font("Arial", 'B', 10)
-                            pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
-                        
-                        pdf.ln(2)
+                def draw_table_header():
+                    y_start = pdf.get_y()
+                    for col in df.columns:
+                        x_start = pdf.get_x()
+                        text = sanitize_for_fpdf(str(col))
+                        lines_needed = max_lines - header_lines_map[col]
+                        if lines_needed > 0:
+                            text += "\n" * lines_needed
+                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
+                        pdf.set_xy(x_start + col_widths[col], y_start)
+                    pdf.set_y(y_start + max_header_height)
+
+                draw_table_header()
+
+                col_ufficio_sep = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                current_prov_sigla = None
+                current_region = None
+                
+                pdf.set_font("Arial", size=9)
+                for _, row in df.iterrows():
+                    if col_ufficio_sep:
+                        prov_sigla = format_val(row[col_ufficio_sep]).upper()
+                        if prov_sigla != current_prov_sigla:
+                            current_prov_sigla = prov_sigla
+                            region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
+                            
+                            if pdf.get_y() + 20 > 190:
+                                pdf.add_page()
+                                draw_table_header()
+                            
+                            pdf.ln(4)
+                            
+                            if region_name and region_name != current_region:
+                                current_region = region_name
+                                pdf.set_font("Arial", 'B', 12) 
+                                pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
+                            
+                            if prov_full_name:
+                                pdf.set_font("Arial", 'B', 10)
+                                pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
+                            
+                            pdf.ln(2)
+                            pdf.set_font("Arial", size=9)
+
+                    if pdf.get_y() + 6 > 190:
+                        pdf.add_page()
+                        draw_table_header()
                         pdf.set_font("Arial", size=9)
 
-                if pdf.get_y() + 6 > 190:
-                    pdf.add_page()
-                    draw_table_header()
-                    pdf.set_font("Arial", size=9)
+                    for col in df.columns:
+                        valore = sanitize_for_fpdf(format_val(row[col]))
+                        char_lim = max(1, int(col_widths[col] / 2.0))
+                        if len(valore) > char_lim:
+                            valore = valore[:char_lim-3] + "..."
+                        
+                        align = 'R' if valore.replace('.', '', 1).replace(',', '', 1).replace('-', '', 1).isdigit() else 'L'
+                        pdf.cell(col_widths[col], 6, valore, border=1, align=align)
+                    pdf.ln(6)
 
-                for col in df.columns:
-                    valore = sanitize_for_fpdf(format_val(row[col]))
-                    char_lim = max(1, int(col_widths[col] / 2.0))
-                    if len(valore) > char_lim:
-                        valore = valore[:char_lim-3] + "..."
-                    
-                    align = 'R' if valore.replace('.', '', 1).replace(',', '', 1).replace('-', '', 1).isdigit() else 'L'
-                    pdf.cell(col_widths[col], 6, valore, border=1, align=align)
-                pdf.ln(6)
-
-            pdf.ln(8)
-            trovato_almeno_uno = True
+                pdf.ln(8)
+                trovato_almeno_uno = True
 
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
@@ -407,7 +379,6 @@ def genera_pdf():
 
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
-        logger.warning("DEBUG: PDF generato vuoto (nessun dato trovato in nessuna classe elaborata).")
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
