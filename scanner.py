@@ -179,6 +179,7 @@ def genera_pdf():
         try:
             # Scarichiamo tutti i file trovati
             lista_dati = []
+            logger.info(f"DEBUG: File da elaborare per {codice}: {[f.name for f in file_da_elaborare]}")
             for file_trovato in file_da_elaborare:
                 try:
                     file_content = repo.get_contents(file_trovato.path)
@@ -207,6 +208,7 @@ def genera_pdf():
             # Elaboriamo un file (e quindi una fascia) alla volta
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
+                logger.info(f"DEBUG: Inizio stampa PDF per fascia '{nome_fascia}' con {len(df)} righe.")
 
                 if province_sigle:
                     col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
