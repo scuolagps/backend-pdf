@@ -147,6 +147,7 @@ def genera_pdf():
     pdf.ln(5)
 
     trovato_almeno_uno = False
+    all_dfs = []
     
     try:
         repo = g.get_repo(REPO_NAME)
@@ -372,6 +373,7 @@ def genera_pdf():
 
                 pdf.ln(8)
                 trovato_almeno_uno = True
+                all_dfs.append(df.copy())
 
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
@@ -384,13 +386,14 @@ def genera_pdf():
 
     # Calcola le statistiche per il grafico (quante righe per ogni provincia)
     stats_data = {}
-    if not df.empty and 'UFFICIO PROVINCIALE' in df.columns:
-        # Conta le occorrenze di ogni sigla e le converte nel nome esteso
-        counts = df['UFFICIO PROVINCIALE'].value_counts()
-        for sigla, count in counts.items():
-            nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
-            if not nome_esteso: nome_esteso = sigla
-            stats_data[nome_esteso] = int(count)
+    if all_dfs:  # Se abbiamo raccolto qualche dato
+        master_df = pd.concat(all_dfs, ignore_index=True)
+        if 'UFFICIO PROVINCIALE' in master_df.columns:
+            counts = master_df['UFFICIO PROVINCIALE'].value_counts()
+            for sigla, count in counts.items():
+                nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
+                if not nome_esteso: nome_esteso = sigla
+                stats_data[nome_esteso] = int(count)
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
