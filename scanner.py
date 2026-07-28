@@ -285,6 +285,10 @@ def genera_pdf():
                 
                 cols_to_drop = []
                 for col in df.columns:
+                    # FIX FONDAMENTALE: Non eliminare mai la colonna della provincia, serve per il PDF e per le Statistiche!
+                    if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper():
+                        continue
+                        
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     if len(unique_vals) <= 1:
                         cols_to_drop.append(col)
