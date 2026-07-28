@@ -147,6 +147,7 @@ def genera_pdf():
     pdf.ln(5)
 
     trovato_almeno_uno = False
+    stats_data = {} # <-- AGGIUNGI QUESTA RIGA
     all_dfs = []
     
     try:
@@ -371,9 +372,18 @@ def genera_pdf():
                         pdf.cell(col_widths[col], 6, valore, border=1, align=align)
                     pdf.ln(6)
 
-                pdf.ln(8)
-                trovato_almeno_uno = True
-                all_dfs.append(df.copy())
+            pdf.ln(8)
+            trovato_almeno_uno = True
+            
+            # --- AGGIUNGI QUESTO BLOCCO PER IL GRAFICO ---
+            if 'UFFICIO PROVINCIALE' in df.columns:
+                counts = df['UFFICIO PROVINCIALE'].value_counts()
+                for sigla, count in counts.items():
+                    nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
+                    if not nome_esteso: nome_esteso = sigla
+                    # Somma i conteggi se la provincia è già presente
+                    stats_data[nome_esteso] = stats_data.get(nome_esteso, 0) + int(count)
+            # ---------------------------------------------
 
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
@@ -395,11 +405,9 @@ def genera_pdf():
                 count = page_text.count(f" {sigla} ")
                 if count > 0:
                     stats_data[nome_esteso] = stats_data.get(nome_esteso, 0) + count
-                    
         logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
     except Exception as e:
-        logger.error(f"Errore calcolo stats: {e}")
-        stats_data = {}
+        logger.error(f"Errore durante il calcolo delle statistiche dal PDF: {e}")
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
@@ -407,7 +415,6 @@ def genera_pdf():
     else:
         pdf_bytes = pdf_string
 
-    # Invia un JSON con il PDF in Base64 e i dati del grafico
     import base64
     pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
