@@ -85,6 +85,29 @@ PROVINCE_DATA = {
     "VT": ("Lazio", "Viterbo")
 }
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
+SCUOLE_MUSICALI = {
+    "Agrigento": 54, "Alessandria": 9, "Ancona": 18, "Aosta": 0, "Ascoli Piceno": 10,
+    "Asti": 4, "Avellino": 65, "Bari": 44, "Barletta-Andria-Trani": 10, "Belluno": 13,
+    "Benevento": 36, "Bergamo": 22, "Biella": 5, "Bologna": 23, "Bolzano": 3,
+    "Brescia": 25, "Brindisi": 26, "Cagliari": 18, "Caltanissetta": 28, "Campobasso": 25,
+    "Caserta": 63, "Catania": 61, "Catanzaro": 36, "Chieti": 15, "Como": 14,
+    "Cosenza": 112, "Cremona": 15, "Crotone": 26, "Cuneo": 12, "Enna": 21,
+    "Fermo": 13, "Ferrara": 7, "Firenze": 28, "Foggia": 43, "Forlì-Cesena": 0,
+    "Frosinone": 38, "Genova": 16, "Gorizia": 0, "Grosseto": 9, "Imperia": 2,
+    "Isernia": 16, "L'Aquila": 21, "La Spezia": 10, "Latina": 22, "Lecce": 57,
+    "Lecco": 7, "Livorno": 12, "Lodi": 3, "Lucca": 17, "Macerata": 9,
+    "Mantova": 9, "Massa-Carrara": 10, "Matera": 21, "Messina": 36, "Milano": 51,
+    "Modena": 6, "Monza e della Brianza": 14, "Napoli": 116, "Novara": 10, "Nuoro": 10,
+    "Oristano": 6, "Padova": 36, "Palermo": 107, "Parma": 10, "Pavia": 7,
+    "Perugia": 18, "Pesaro e Urbino": 0, "Pescara": 20, "Piacenza": 0, "Pisa": 12,
+    "Pistoia": 12, "Pordenone": 0, "Potenza": 38, "Prato": 13, "Ragusa": 23,
+    "Ravenna": 5, "Reggio Calabria": 44, "Reggio Emilia": 4, "Rieti": 19, "Rimini": 5,
+    "Roma": 69, "Rovigo": 25, "Salerno": 80, "Sassari": 40, "Savona": 4,
+    "Siena": 9, "Siracusa": 23, "Sondrio": 11, "Taranto": 26, "Teramo": 15,
+    "Terni": 5, "Torino": 49, "Trapani": 38, "Trento": 0, "Treviso": 51,
+    "Trieste": 0, "Udine": 0, "Varese": 17, "Venezia": 29, "Verbano-Cusio-Ossola": 6,
+    "Vercelli": 9, "Verona": 26, "Vibo Valentia": 38, "Vicenza": 43, "Viterbo": 18
+}
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -375,15 +398,37 @@ def genera_pdf():
             pdf.ln(8)
             trovato_almeno_uno = True
             
-            # --- AGGIUNGI QUESTO BLOCCO PER IL GRAFICO ---
-            if 'UFFICIO PROVINCIALE' in df.columns:
-                counts = df['UFFICIO PROVINCIALE'].value_counts()
+            # --- NUOVO BLOCCO CALCOLO STATISTICHE RAPPORTO S/C ---
+            if col_ufficio_sep:
+                # Conta i candidati per provincia in questo DataFrame
+                counts = df[col_ufficio_sep].value_counts()
                 for sigla, count in counts.items():
-                    nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
-                    if not nome_esteso: nome_esteso = sigla
-                    # Somma i conteggi se la provincia è già presente
-                    stats_data[nome_esteso] = stats_data.get(nome_esteso, 0) + int(count)
-            # ---------------------------------------------
+                    sigla_str = str(sigla).upper()
+                    # Trova il nome esteso della provincia
+                    region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
+                    
+                    # Numero di scuole totali per quella provincia
+                    num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
+                    num_candidati = int(count)
+                    
+                    # Calcolo Formula: S / C
+                    if num_candidati > 0:
+                        rapporto = round(num_scuole / num_candidati, 4)
+                    else:
+                        rapporto = 0
+                        
+                    # Aggiorna il dizionario stats_data
+                    if nome_esteso not in stats_data:
+                        stats_data[nome_esteso] = {
+                            "scuole": num_scuole,
+                            "candidati": num_candidati,
+                            "rapporto": rapporto
+                        }
+                    else:
+                        # Se la provincia appare in più classi/fasce, somma i candidati
+                        stats_data[nome_esteso]["candidati"] += num_candidati
+                        stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
+            # --------------------------------------------------------
 
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
@@ -394,20 +439,7 @@ def genera_pdf():
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
 
-    # Calcola le statistiche per il grafico leggendo direttamente il PDF generato
-    stats_data = {}
-    try:
-        for page_num in range(1, pdf.page_no() + 1):
-            page_text = pdf.get_text(page_num) if hasattr(pdf, 'get_text') else ""
-            # Cerca le sigle delle province (es. "FG", "RM", "MI") nel testo della pagina
-            for sigla, (regione, nome_esteso) in PROVINCE_DATA.items():
-                # Conta quante volte la sigla appare come parola esatta nella pagina
-                count = page_text.count(f" {sigla} ")
-                if count > 0:
-                    stats_data[nome_esteso] = stats_data.get(nome_esteso, 0) + count
-        logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
-    except Exception as e:
-        logger.error(f"Errore durante il calcolo delle statistiche dal PDF: {e}")
+
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
