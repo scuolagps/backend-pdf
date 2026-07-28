@@ -382,20 +382,30 @@ def genera_pdf():
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
 
+    # Calcola le statistiche per il grafico (quante righe per ogni provincia)
+    stats_data = {}
+    if not df.empty and 'UFFICIO PROVINCIALE' in df.columns:
+        # Conta le occorrenze di ogni sigla e le converte nel nome esteso
+        counts = df['UFFICIO PROVINCIALE'].value_counts()
+        for sigla, count in counts.items():
+            nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
+            if not nome_esteso: nome_esteso = sigla
+            stats_data[nome_esteso] = int(count)
+
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
         pdf_bytes = pdf_string.encode('latin-1')
     else:
         pdf_bytes = pdf_string
-        
-    output = io.BytesIO(pdf_bytes)
-    output.seek(0)
 
-    return send_file(
-        output,
-        download_name='Risultato_Estrazione_Filtrata.pdf',
-        mimetype='application/pdf'
-    )
+    # Invia un JSON con il PDF in Base64 e i dati del grafico
+    import base64
+    pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+
+    return jsonify({
+        "pdf_base64": pdf_base64,
+        "stats": stats_data
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
