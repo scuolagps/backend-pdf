@@ -86,6 +86,7 @@ PROVINCE_DATA = {
 }
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
 
+# Dizionario delle scuole per il calcolo del grafico
 SCUOLE_MUSICALI = {
     "Agrigento": 54, "Alessandria": 9, "Ancona": 18, "Aosta": 0, "Ascoli Piceno": 10,
     "Asti": 4, "Avellino": 65, "Bari": 44, "Barletta-Andria-Trani": 10, "Belluno": 13,
@@ -172,6 +173,7 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     stats_data = {} 
+    all_dfs = []
     
     try:
         repo = g.get_repo(REPO_NAME)
@@ -202,6 +204,7 @@ def genera_pdf():
         pdf.ln(2)
 
         try:
+            # Scarichiamo tutti i file trovati
             lista_dati = []
             logger.info(f"DEBUG: File da elaborare per {codice}: {[f.name for f in file_da_elaborare]}")
             for file_trovato in file_da_elaborare:
@@ -216,6 +219,8 @@ def genera_pdf():
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
+                    # Estrai il nome della fascia dal nome del file
+                    # Es: "Risultato_Estrazione_AM56_I fascia.xlsx" -> "I FASCIA"
                     fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").strip().upper()
                     if not fascia_nome:
                         fascia_nome = "DETTAGLI"
@@ -227,6 +232,7 @@ def genera_pdf():
             if not lista_dati:
                 continue
 
+            # Elaboriamo un file (e quindi una fascia) alla volta
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
                 logger.info(f"DEBUG: Inizio stampa PDF per fascia '{nome_fascia}' con {len(df)} righe.")
@@ -270,6 +276,7 @@ def genera_pdf():
                             stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
                 # ----------------------------------------
 
+                # --- INTESTAZIONE FASCIA ---
                 pdf.set_font("Arial", 'B', 12)
                 pdf.cell(0, 10, txt=sanitize_for_fpdf(nome_fascia), ln=True, align='L')
                 pdf.ln(2)
@@ -285,10 +292,6 @@ def genera_pdf():
                 
                 cols_to_drop = []
                 for col in df.columns:
-                    # FIX FONDAMENTALE: Non eliminare mai la colonna della provincia, serve per il PDF e per le Statistiche!
-                    if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper():
-                        continue
-                        
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     if len(unique_vals) <= 1:
                         cols_to_drop.append(col)
@@ -422,7 +425,7 @@ def genera_pdf():
 
             pdf.ln(8)
             trovato_almeno_uno = True
-
+            
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
             pdf.set_font("Arial", 'I', 10)
