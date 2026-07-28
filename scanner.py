@@ -85,6 +85,7 @@ PROVINCE_DATA = {
     "VT": ("Lazio", "Viterbo")
 }
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
+
 SCUOLE_MUSICALI = {
     "Agrigento": 54, "Alessandria": 9, "Ancona": 18, "Aosta": 0, "Ascoli Piceno": 10,
     "Asti": 4, "Avellino": 65, "Bari": 44, "Barletta-Andria-Trani": 10, "Belluno": 13,
@@ -170,8 +171,7 @@ def genera_pdf():
     pdf.ln(5)
 
     trovato_almeno_uno = False
-    stats_data = {} # <-- AGGIUNGI QUESTA RIGA
-    all_dfs = []
+    stats_data = {} 
     
     try:
         repo = g.get_repo(REPO_NAME)
@@ -202,7 +202,6 @@ def genera_pdf():
         pdf.ln(2)
 
         try:
-            # Scarichiamo tutti i file trovati
             lista_dati = []
             logger.info(f"DEBUG: File da elaborare per {codice}: {[f.name for f in file_da_elaborare]}")
             for file_trovato in file_da_elaborare:
@@ -217,8 +216,6 @@ def genera_pdf():
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
-                    # Estrai il nome della fascia dal nome del file
-                    # Es: "Risultato_Estrazione_AM56_I fascia.xlsx" -> "I FASCIA"
                     fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").strip().upper()
                     if not fascia_nome:
                         fascia_nome = "DETTAGLI"
@@ -230,7 +227,6 @@ def genera_pdf():
             if not lista_dati:
                 continue
 
-            # Elaboriamo un file (e quindi una fascia) alla volta
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
                 logger.info(f"DEBUG: Inizio stampa PDF per fascia '{nome_fascia}' con {len(df)} righe.")
@@ -247,7 +243,33 @@ def genera_pdf():
                 if df.empty:
                     continue
 
-                # --- INTESTAZIONE FASCIA ---
+                # --- CALCOLO STATISTICHE RAPPORTO S/C ---
+                col_ufficio_sep = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                if col_ufficio_sep:
+                    counts = df[col_ufficio_sep].value_counts()
+                    for sigla, count in counts.items():
+                        sigla_str = str(sigla).upper()
+                        region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
+                        
+                        num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
+                        num_candidati = int(count)
+                        
+                        if num_candidati > 0:
+                            rapporto = round(num_scuole / num_candidati, 4)
+                        else:
+                            rapporto = 0
+                            
+                        if nome_esteso not in stats_data:
+                            stats_data[nome_esteso] = {
+                                "scuole": num_scuole,
+                                "candidati": num_candidati,
+                                "rapporto": rapporto
+                            }
+                        else:
+                            stats_data[nome_esteso]["candidati"] += num_candidati
+                            stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
+                # ----------------------------------------
+
                 pdf.set_font("Arial", 'B', 12)
                 pdf.cell(0, 10, txt=sanitize_for_fpdf(nome_fascia), ln=True, align='L')
                 pdf.ln(2)
@@ -350,7 +372,6 @@ def genera_pdf():
 
                 draw_table_header()
 
-                col_ufficio_sep = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 current_prov_sigla = None
                 current_region = None
                 
@@ -397,38 +418,6 @@ def genera_pdf():
 
             pdf.ln(8)
             trovato_almeno_uno = True
-            
-            # --- NUOVO BLOCCO CALCOLO STATISTICHE RAPPORTO S/C ---
-            if col_ufficio_sep:
-                # Conta i candidati per provincia in questo DataFrame
-                counts = df[col_ufficio_sep].value_counts()
-                for sigla, count in counts.items():
-                    sigla_str = str(sigla).upper()
-                    # Trova il nome esteso della provincia
-                    region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
-                    
-                    # Numero di scuole totali per quella provincia
-                    num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
-                    num_candidati = int(count)
-                    
-                    # Calcolo Formula: S / C
-                    if num_candidati > 0:
-                        rapporto = round(num_scuole / num_candidati, 4)
-                    else:
-                        rapporto = 0
-                        
-                    # Aggiorna il dizionario stats_data
-                    if nome_esteso not in stats_data:
-                        stats_data[nome_esteso] = {
-                            "scuole": num_scuole,
-                            "candidati": num_candidati,
-                            "rapporto": rapporto
-                        }
-                    else:
-                        # Se la provincia appare in più classi/fasce, somma i candidati
-                        stats_data[nome_esteso]["candidati"] += num_candidati
-                        stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
-            # --------------------------------------------------------
 
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}")
@@ -438,8 +427,6 @@ def genera_pdf():
 
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
-
-
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
