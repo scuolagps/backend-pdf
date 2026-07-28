@@ -394,7 +394,10 @@ def genera_pdf():
                 nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
                 if not nome_esteso: nome_esteso = sigla
                 stats_data[nome_esteso] = int(count)
-     logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
+
+    # --- RIGA DI DEBUG ---
+    logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
+    # ----------------------
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
@@ -416,3 +419,4 @@ if __name__ == '__main__':
     from waitress import serve
     print(f"Avvio del server di produzione sulla porta {port}...")
     serve(app, host='0.0.0.0', port=port)
+    
