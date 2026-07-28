@@ -384,20 +384,22 @@ def genera_pdf():
     if not trovato_almeno_uno:
         pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
 
-    # Calcola le statistiche per il grafico (quante righe per ogni provincia)
+    # Calcola le statistiche per il grafico leggendo direttamente il PDF generato
     stats_data = {}
-    if all_dfs:  # Se abbiamo raccolto qualche dato
-        master_df = pd.concat(all_dfs, ignore_index=True)
-        if 'UFFICIO PROVINCIALE' in master_df.columns:
-            counts = master_df['UFFICIO PROVINCIALE'].value_counts()
-            for sigla, count in counts.items():
-                nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
-                if not nome_esteso: nome_esteso = sigla
-                stats_data[nome_esteso] = int(count)
-
-    # --- RIGA DI DEBUG ---
-    logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
-    # ----------------------
+    try:
+        for page_num in range(1, pdf.page_no() + 1):
+            page_text = pdf.get_text(page_num) if hasattr(pdf, 'get_text') else ""
+            # Cerca le sigle delle province (es. "FG", "RM", "MI") nel testo della pagina
+            for sigla, (regione, nome_esteso) in PROVINCE_DATA.items():
+                # Conta quante volte la sigla appare come parola esatta nella pagina
+                count = page_text.count(f" {sigla} ")
+                if count > 0:
+                    stats_data[nome_esteso] = stats_data.get(nome_esteso, 0) + count
+                    
+        logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
+    except Exception as e:
+        logger.error(f"Errore calcolo stats: {e}")
+        stats_data = {}
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
@@ -419,4 +421,3 @@ if __name__ == '__main__':
     from waitress import serve
     print(f"Avvio del server di produzione sulla porta {port}...")
     serve(app, host='0.0.0.0', port=port)
-    
