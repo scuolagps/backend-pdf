@@ -394,6 +394,7 @@ def genera_pdf():
                 nome_esteso = PROVINCE_DATA.get(str(sigla).upper(), ("", str(sigla)))[1]
                 if not nome_esteso: nome_esteso = sigla
                 stats_data[nome_esteso] = int(count)
+     logger.info(f"DEBUG GRAFICO: Dati stats inviati: {stats_data}")
 
     pdf_string = pdf.output(dest='S')
     if isinstance(pdf_string, str):
