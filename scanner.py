@@ -254,6 +254,12 @@ def genera_pdf():
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
+                # RINOMINA COLONNE LUNGHE
+                df.rename(columns={
+                    'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA',
+                    'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
+                }, inplace=True, errors='ignore')
+
                 # TROVA COLONNE
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
@@ -345,7 +351,7 @@ def genera_pdf():
                 
                 # --- MANTENIMENTO COLONNE CON UN SOLO VALORE (AM56, 1, MM) ---
                 cols_to_drop = []
-                keep_cols = ['CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'FASCIA', 'ORDINE SCUOLA GRADUATORIA']
+                keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA']
                 for col in df.columns:
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     col_upper = str(col).upper()
@@ -368,13 +374,12 @@ def genera_pdf():
                         except ValueError: pass
                     return s
 
-                # --- CALCOLO LARGHEZZE COLONNE (PERMETTE WRAP SU 2 RIGHE SENZA ESPANDERE TROPPO) ---
+                # --- CALCOLO LARGHEZZE COLONNE ---
                 col_widths = {}
                 total_width = 0
                 for col in df.columns:
                     words = str(col).split()
                     longest_word = max(len(w) for w in words) if words else 1
-                    # Larghezza basata sulla parola più lunga per non tagliare le parole, ma permette il wrap su 2 righe
                     min_width_header = max(longest_word * 2.2, 15)
                     
                     max_len_content = len(str(col))
@@ -397,6 +402,8 @@ def genera_pdf():
                 if total_width > 0:
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
+                    # Calcola la larghezza totale scalata per la riga vuota
+                    total_width_scaled = sum(col_widths.values())
 
                 pdf.set_font("Arial", 'B', 9)
                 line_height = 5
@@ -420,25 +427,30 @@ def genera_pdf():
                         lines.append(current_line)
                     
                     if not lines: lines = [""]
-                    # Forza in 2 righe se eccede
                     if len(lines) > 2:
                         lines = [lines[0], " ".join(lines[1:])]
-                    # Aggiungi riga vuota se più corta di 2 (es. COGNOME -> COGNOME + riga vuota)
                     while len(lines) < 2:
                         lines.append("")
                         
                     header_texts[col] = "\n".join(lines)
 
-                def draw_table_header():
+                # FUNZIONE DISEGNA INTESTAZIONE CON SPAZIATURA OPZIONALE
+                def draw_table_header(add_spacer=False):
                     y_start = pdf.get_y()
                     for col in df.columns:
                         x_start = pdf.get_x()
-                        text = header_texts[col] # Usa il testo pre-formattato
-                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='C')
+                        text = header_texts[col]
+                        # ALLINEAMENTO A SINISTRA PER TUTTE LE COLONNE
+                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
                         pdf.set_xy(x_start + col_widths[col], y_start)
                     pdf.set_y(y_start + max_header_height)
+                    
+                    # AGGIUNGI RIGA VUOTA PER SEPARARE (DALLA SECONDA PAGINA)
+                    if add_spacer:
+                        pdf.cell(total_width_scaled, line_height, "", border=0, ln=1)
 
-                draw_table_header()
+                # Prima intestazione (nessuno spacer extra richiesto in genere sulla prima)
+                draw_table_header(add_spacer=False)
 
                 current_prov_sigla = None
                 current_region = None
@@ -453,7 +465,9 @@ def genera_pdf():
                             region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
                             if pdf.get_y() + 20 > 190:
                                 pdf.add_page()
-                                draw_table_header()
+                                # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
+                                draw_table_header(add_spacer=True)
+                                pdf.set_font("Arial", size=9)
                             pdf.ln(4)
                             if region_name and region_name != current_region:
                                 current_region = region_name
@@ -467,7 +481,8 @@ def genera_pdf():
 
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
-                        draw_table_header()
+                        # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
+                        draw_table_header(add_spacer=True)
                         pdf.set_font("Arial", size=9)
 
                     for col in df.columns:
@@ -476,11 +491,8 @@ def genera_pdf():
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
                         
-                        col_upper = str(col).upper()
-                        if col_upper in ['COGNOME', 'NOME']:
-                            align = 'L'
-                        else:
-                            align = 'C'
+                        # ALLINEAMENTO A SINISTRA PER TUTTI I DATI
+                        align = 'L'
                             
                         pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
                     pdf.ln(row_height)
