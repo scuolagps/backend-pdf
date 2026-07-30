@@ -138,6 +138,11 @@ def genera_pdf():
 
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
+        # SELEZIONA AUTOMATICAMENTE TUTTE LE PROVINCE DELLA REGIONE SE L'UTENTE NON HA SPECIFICATO LE PROVINCE
+    if regioni_richieste and not province_nomi:
+        for sigla, (region, nome) in PROVINCE_DATA.items():
+            if region in regioni_richieste and nome not in province_nomi:
+                province_nomi.append(nome)
     if not isinstance(classi_selezionate, list) or not classi_selezionate:
         return jsonify({"error": "Nessuna classe selezionata."}), 400
     if len(classi_selezionate) > MAX_CLASSI:
@@ -256,22 +261,28 @@ def genera_pdf():
                 if col_ufficio:
                     df['_sigla_prov'] = df[col_ufficio].apply(to_sigla)
                     df = df.dropna(subset=['_sigla_prov'])
-                    
                     if province_sigle:
                         df = df[df['_sigla_prov'].isin(province_sigle)]
-                    
                     df[col_ufficio] = df['_sigla_prov']
                     df = df.drop(columns=['_sigla_prov'])
                 else:
                     df = pd.DataFrame()
 
-                # RIMUOVI RIGHE VUOTE (separatori di provincia tipo "PIACENZA | * | * ...")
+                # RIMUOVI RIGHE VUOTE (separatori di provincia)
                 if col_cognome and not df.empty:
                     df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
                     df = df.dropna(subset=[col_cognome])
 
                 if df.empty:
                     continue
+
+                # --- ELIMINAZIONE COLONNE RICHIESTE ---
+                useless_cols = [
+                    'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE',
+                    'INCLUSIONE CON RISERVA'
+                ]
+                df.columns = df.columns.astype(str).str.strip()
+                df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
                 # --- CALCOLO STATISTICHE RAPPORTO S/C E PUNTEGGI ---
                 col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
@@ -299,12 +310,9 @@ def genera_pdf():
                         if not prov_df.empty:
                             idx_max = prov_df['punteggio_num'].idxmax()
                             idx_min = prov_df['punteggio_num'].idxmin()
-                            
                             max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
                             min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
                             median_score = float(prov_df['punteggio_num'].median())
-                            
-                            # MOSTRA SOLO PUNTEGGIO (con virgola)
                             top_candidate = f"{max_score:.2f}".replace('.', ',')
                             bottom_candidate = f"{min_score:.2f}".replace('.', ',')
                             
@@ -340,7 +348,6 @@ def genera_pdf():
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     col_upper = str(col).upper()
                     is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
-                    
                     if len(unique_vals) <= 1 and not is_ufficio_col:
                         cols_to_drop.append(col)
                     if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
@@ -357,62 +364,73 @@ def genera_pdf():
                         except ValueError: pass
                     return s
 
+                # --- CALCOLO LARGHEZZE COLONNE (GARANTENDO TESTO COMPLETO IN 2 RIGHE) ---
                 col_widths = {}
                 total_width = 0
                 for col in df.columns:
-                    max_len = len(str(col))
+                    words = str(col).split()
+                    longest_word = max(len(w) for w in words) if words else 1
+                    # Larghezza minima per far stare la parola più lunga e dividere il titolo su 2 righe
+                    min_width_header = max(longest_word * 2.2, (len(str(col)) / 2) * 2.2, 15)
+                    
+                    max_len_content = len(str(col))
                     for val in df[col].head(100):
                         val_str = format_val(val)
-                        if len(val_str) > max_len: max_len = len(val_str)
+                        if len(val_str) > max_len_content: max_len_content = len(val_str)
                     
-                    width = min(max_len * 2.2, 50)
-                    if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']: width = 20 
+                    width = min(max_len_content * 2.2, 50)
+                    width = max(width, min_width_header)
+                    
+                    if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']: width = max(width, 25) 
                     if str(col).upper() in ['COGNOME', 'NOME']: width = max(width, 35)
                     if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper(): width = max(width, 25)
                     if 'POSIZIONE' in str(col).upper(): width = max(width, 20)
                         
-                    width = max(width, 15)
                     col_widths[col] = width
                     total_width += width
 
                 page_width = 277
                 if total_width > 0:
-                    # SCALA SEMPRE PER RIEMPIRE LA LARGHEZZA DELLA PAGINA (tabelle di stesse dimensioni)
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
 
                 pdf.set_font("Arial", 'B', 9)
                 line_height = 5
-                
-                max_lines = 1
-                header_lines_map = {}
-                for col in df.columns:
-                    char_limit = max(1, int(col_widths[col] / 1.8))
-                    text = sanitize_for_fpdf(str(col))
-                    lines = 0
-                    current_line_len = 0
-                    for word in text.split():
-                        if current_line_len + len(word) + 1 > char_limit:
-                            lines += 1
-                            current_line_len = len(word)
-                        else:
-                            current_line_len += len(word) + 1
-                    if current_line_len > 0 or lines == 0: lines += 1
-                    # FORZA MASSIMO 2 RIGHE PER L'INTESTAZIONE
-                    lines = min(lines, 2)
-                    header_lines_map[col] = lines
-                    if lines > max_lines: max_lines = lines
-
+                max_lines = 2
                 max_header_height = max_lines * line_height
+                header_texts = {}
+
+                # PRE-FORMATTAZIONE TESTO INTESTAZIONE PER AVERE ESATTAMENTE 2 RIGHE
+                for col in df.columns:
+                    char_limit = max(1, int(col_widths[col] / 2.0))
+                    words = str(col).split()
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if len(current_line) + len(word) + 1 <= char_limit:
+                            current_line = (current_line + " " + word).strip()
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        lines.append(current_line)
+                    
+                    if not lines: lines = [""]
+                    # Forza in 2 righe se eccede
+                    if len(lines) > 2:
+                        lines = [lines[0], " ".join(lines[1:])]
+                    # Aggiungi riga vuota se più corta di 2 (es. COGNOME -> COGNOME + riga vuota)
+                    while len(lines) < 2:
+                        lines.append("")
+                        
+                    header_texts[col] = "\n".join(lines)
 
                 def draw_table_header():
                     y_start = pdf.get_y()
                     for col in df.columns:
                         x_start = pdf.get_x()
-                        text = sanitize_for_fpdf(str(col))
-                        lines_needed = max_lines - header_lines_map[col]
-                        if lines_needed > 0: text += "\n" * lines_needed
-                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
+                        text = header_texts[col] # Usa il testo pre-formattato
+                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='C')
                         pdf.set_xy(x_start + col_widths[col], y_start)
                     pdf.set_y(y_start + max_header_height)
 
@@ -420,9 +438,7 @@ def genera_pdf():
 
                 current_prov_sigla = None
                 current_region = None
-                
                 pdf.set_font("Arial", size=9)
-                # AUMENTO ALTEZZA RIGA A 7 PER AVERE PIÙ SPAZIO SOTTO LE COLONNE
                 row_height = 7
                 
                 for _, row in df.iterrows():
@@ -431,22 +447,17 @@ def genera_pdf():
                         if prov_sigla != current_prov_sigla:
                             current_prov_sigla = prov_sigla
                             region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
-                            
                             if pdf.get_y() + 20 > 190:
                                 pdf.add_page()
                                 draw_table_header()
-                            
                             pdf.ln(4)
-                            
                             if region_name and region_name != current_region:
                                 current_region = region_name
                                 pdf.set_font("Arial", 'B', 12) 
                                 pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
-                            
                             if prov_full_name:
                                 pdf.set_font("Arial", 'B', 10)
                                 pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
-                            
                             pdf.ln(2)
                             pdf.set_font("Arial", size=9)
 
@@ -460,7 +471,13 @@ def genera_pdf():
                         char_lim = max(1, int(col_widths[col] / 2.0))
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
-                        align = 'R' if valore.replace('.', '', 1).replace(',', '', 1).replace('-', '', 1).isdigit() else 'L'
+                        
+                        col_upper = str(col).upper()
+                        if col_upper in ['COGNOME', 'NOME']:
+                            align = 'L'
+                        else:
+                            align = 'C'
+                            
                         pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
                     pdf.ln(row_height)
 
