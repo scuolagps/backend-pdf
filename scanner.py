@@ -187,10 +187,12 @@ def genera_pdf():
         codice_norm = normalize_string(codice)
         
         file_da_elaborare = []
+        nomi_visti = set() # Fix per evitare duplicati
         for f in root_files:
             nome_file_norm = normalize_string(f.name)
             # --- DEBUG 2: Vediamo come matchano i file ---
-            if codice_norm in nome_file_norm and nome_file_norm.endswith(".XLSX"):
+            if codice_norm in nome_file_norm and nome_file_norm.endswith(".XLSX") and f.name not in nomi_visti:
+                nomi_visti.add(f.name)
                 logger.info(f"DEBUG 2: Trovato file pertinente: '{f.name}' (Normalizzato: '{nome_file_norm}')")
                 
                 # Se il tuo file si chiama solo "AM56_I_Fascia.xlsx", non contiene "RISULTATOESTRAZIONE"
@@ -319,11 +321,18 @@ def genera_pdf():
                 cols_to_drop = []
                 for col in df.columns:
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
-                    if len(unique_vals) <= 1:
+                    
+                    # FIX: Non scartare mai la colonna UFFICIO/PROVINCIA, serve per i raggruppamenti nel PDF!
+                    col_upper = str(col).upper()
+                    is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
+                    
+                    if len(unique_vals) <= 1 and not is_ufficio_col:
                         cols_to_drop.append(col)
+                        
                     if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
                         cols_to_drop.append(col)
-                df = df.drop(columns=cols_to_drop)
+                        
+                df = df.drop(columns=cols_to_drop, errors='ignore')
 
                 def format_val(val):
                     s = str(val).strip()
