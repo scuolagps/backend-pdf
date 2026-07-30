@@ -285,7 +285,9 @@ def genera_pdf():
                 # --- ELIMINAZIONE COLONNE RICHIESTE ---
                 useless_cols = [
                     'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE',
-                    'INCLUSIONE CON RISERVA'
+                    'INCLUSIONE CON RISERVA',
+                    'COGNOME',
+                    'NOME'
                 ]
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
