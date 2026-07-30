@@ -249,20 +249,26 @@ def genera_pdf():
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
-                # TROVA COLONNA PROVINCIA E NORMALIZZA SEMPRE A SIGLA (es. FOGGIA -> FG, PIACENZA -> PC)
+                # TROVA COLONNE
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
+                
                 if col_ufficio:
                     df['_sigla_prov'] = df[col_ufficio].apply(to_sigla)
-                    df = df.dropna(subset=['_sigla_prov']) # Butta righe non riconoscibili (come "L")
+                    df = df.dropna(subset=['_sigla_prov'])
                     
                     if province_sigle:
                         df = df[df['_sigla_prov'].isin(province_sigle)]
                     
-                    # Sostituisco la colonna originale con la sigla pulita
                     df[col_ufficio] = df['_sigla_prov']
                     df = df.drop(columns=['_sigla_prov'])
                 else:
                     df = pd.DataFrame()
+
+                # RIMUOVI RIGHE VUOTE (separatori di provincia tipo "PIACENZA | * | * ...")
+                if col_cognome and not df.empty:
+                    df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
+                    df = df.dropna(subset=[col_cognome])
 
                 if df.empty:
                     continue
@@ -285,7 +291,6 @@ def genera_pdf():
                     
                     if col_punteggio_sep:
                         prov_df = df[df[col_ufficio] == sigla_str].copy()
-                        # Gestisce punteggi con virgola, punto e asterischi
                         prov_df['punteggio_num'] = prov_df[col_punteggio_sep].astype(str).str.replace(',', '.').str.replace('*', '').str.extract(r'(\d+\.?\d*)')[0]
                         prov_df = prov_df.dropna(subset=['punteggio_num'])
                         prov_df['punteggio_num'] = pd.to_numeric(prov_df['punteggio_num'], errors='coerce')
@@ -295,23 +300,13 @@ def genera_pdf():
                             idx_max = prov_df['punteggio_num'].idxmax()
                             idx_min = prov_df['punteggio_num'].idxmin()
                             
-                            col_cognome = next((c for c in prov_df.columns if 'COGNOME' in str(c).upper()), None)
-                            col_nome = next((c for c in prov_df.columns if str(c).strip().upper() == 'NOME'), None)
-                            
-                            def get_name(row):
-                                name = ""
-                                if col_cognome and pd.notna(row.get(col_cognome)): name += str(row[col_cognome]) + " "
-                                if col_nome and pd.notna(row.get(col_nome)): name += str(row[col_nome])
-                                return name.strip() or "N/D"
-                                
-                            max_name = get_name(prov_df.loc[idx_max])
-                            min_name = get_name(prov_df.loc[idx_min])
                             max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
                             min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
                             median_score = float(prov_df['punteggio_num'].median())
                             
-                            top_candidate = f"{max_name} ({max_score:.2f})"
-                            bottom_candidate = f"{min_name} ({min_score:.2f})"
+                            # MOSTRA SOLO PUNTEGGIO (con virgola)
+                            top_candidate = f"{max_score:.2f}".replace('.', ',')
+                            bottom_candidate = f"{min_score:.2f}".replace('.', ',')
                             
                     if nome_esteso not in stats_data:
                         stats_data[nome_esteso] = {
@@ -381,7 +376,8 @@ def genera_pdf():
                     total_width += width
 
                 page_width = 277
-                if total_width > page_width:
+                if total_width > 0:
+                    # SCALA SEMPRE PER RIEMPIRE LA LARGHEZZA DELLA PAGINA (tabelle di stesse dimensioni)
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
 
@@ -402,6 +398,8 @@ def genera_pdf():
                         else:
                             current_line_len += len(word) + 1
                     if current_line_len > 0 or lines == 0: lines += 1
+                    # FORZA MASSIMO 2 RIGHE PER L'INTESTAZIONE
+                    lines = min(lines, 2)
                     header_lines_map[col] = lines
                     if lines > max_lines: max_lines = lines
 
@@ -424,6 +422,9 @@ def genera_pdf():
                 current_region = None
                 
                 pdf.set_font("Arial", size=9)
+                # AUMENTO ALTEZZA RIGA A 7 PER AVERE PIÙ SPAZIO SOTTO LE COLONNE
+                row_height = 7
+                
                 for _, row in df.iterrows():
                     if col_ufficio:
                         prov_sigla = format_val(row[col_ufficio]).upper()
@@ -449,7 +450,7 @@ def genera_pdf():
                             pdf.ln(2)
                             pdf.set_font("Arial", size=9)
 
-                    if pdf.get_y() + 6 > 190:
+                    if pdf.get_y() + row_height > 190:
                         pdf.add_page()
                         draw_table_header()
                         pdf.set_font("Arial", size=9)
@@ -460,8 +461,8 @@ def genera_pdf():
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
                         align = 'R' if valore.replace('.', '', 1).replace(',', '', 1).replace('-', '', 1).isdigit() else 'L'
-                        pdf.cell(col_widths[col], 6, valore, border=1, align=align)
-                    pdf.ln(6)
+                        pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
+                    pdf.ln(row_height)
 
             pdf.ln(8)
             trovato_almeno_uno = True
