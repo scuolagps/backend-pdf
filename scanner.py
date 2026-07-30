@@ -343,12 +343,16 @@ def genera_pdf():
                     v = str(val).strip().lower()
                     return v in ['nan', '*', 'none', '', '-']
                 
+                # --- MANTENIMENTO COLONNE CON UN SOLO VALORE (AM56, 1, MM) ---
                 cols_to_drop = []
+                keep_cols = ['CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'FASCIA', 'ORDINE SCUOLA GRADUATORIA']
                 for col in df.columns:
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     col_upper = str(col).upper()
                     is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
-                    if len(unique_vals) <= 1 and not is_ufficio_col:
+                    is_keep_col = col_upper in [c.upper() for c in keep_cols]
+                    
+                    if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col:
                         cols_to_drop.append(col)
                     if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
                         cols_to_drop.append(col)
@@ -364,14 +368,14 @@ def genera_pdf():
                         except ValueError: pass
                     return s
 
-                # --- CALCOLO LARGHEZZE COLONNE (GARANTENDO TESTO COMPLETO IN 2 RIGHE) ---
+                # --- CALCOLO LARGHEZZE COLONNE (PERMETTE WRAP SU 2 RIGHE SENZA ESPANDERE TROPPO) ---
                 col_widths = {}
                 total_width = 0
                 for col in df.columns:
                     words = str(col).split()
                     longest_word = max(len(w) for w in words) if words else 1
-                    # Larghezza minima per far stare la parola più lunga e dividere il titolo su 2 righe
-                    min_width_header = max(longest_word * 2.2, (len(str(col)) / 2) * 2.2, 15)
+                    # Larghezza basata sulla parola più lunga per non tagliare le parole, ma permette il wrap su 2 righe
+                    min_width_header = max(longest_word * 2.2, 15)
                     
                     max_len_content = len(str(col))
                     for val in df[col].head(100):
