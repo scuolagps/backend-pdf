@@ -148,7 +148,8 @@ def genera_pdf():
         sigla = PROVINCE_SIGLE.get(prov)
         if sigla:
             province_sigle.append(sigla)
-
+    # --- DEBUG 1: Vediamo cosa arriva dal frontend ---
+    logger.info(f"DEBUG 1: Filtri ricevuti -> Classi: {classi_selezionate} | Province Nomi: {province_nomi} | Sigle generate: {province_sigle} | Fascia: '{fascia_richiesta}' (Normalizzata: '{normalize_string(fascia_richiesta)}')")
     codici_validi = []
     for codice in classi_selezionate:
         identificativo = codice.split(' - ')[0].strip()
@@ -188,7 +189,22 @@ def genera_pdf():
         file_da_elaborare = []
         for f in root_files:
             nome_file_norm = normalize_string(f.name)
-            if f"RISULTATOESTRAZIONE{codice_norm}" in nome_file_norm and nome_file_norm.endswith(".XLSX"):
+            # --- DEBUG 2: Vediamo come matchano i file ---
+            if codice_norm in nome_file_norm and nome_file_norm.endswith(".XLSX"):
+                logger.info(f"DEBUG 2: Trovato file pertinente: '{f.name}' (Normalizzato: '{nome_file_norm}')")
+                
+                # Se il tuo file si chiama solo "AM56_I_Fascia.xlsx", non contiene "RISULTATOESTRAZIONE"
+                # e quindi il filtro originale lo scartava! Usiamo questo più permissivo:
+                parte_dopo_codice = nome_file_norm.split(codice_norm)[-1]
+                
+                if fascia_norm:
+                    if parte_dopo_codice == fascia_norm + ".XLSX":
+                        logger.info(f"DEBUG 2: -> File AMMESSO per la fascia '{fascia_norm}'")
+                        file_da_elaborare.append(f)
+                    else:
+                        logger.info(f"DEBUG 2: -> File SCARTATO. La parte dopo il codice è '{parte_dopo_codice}' ma la fascia cercata è '{fascia_norm}.XLSX'")
+                else:
+                    file_da_elaborare.append(f)
                 if fascia_norm:
                     parte_dopo_codice = nome_file_norm.split(codice_norm)[1]
                     if parte_dopo_codice == fascia_norm + ".XLSX":
@@ -218,6 +234,8 @@ def genera_pdf():
                         
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
+                    # --- DEBUG 3: Vediamo se l'Excel si legge e quante righe ha ---
+                    logger.info(f"DEBUG 3: File '{file_trovato.name}' letto. Righe totali nel foglio Excel: {len(df_temp)}")
                     
                     # Estrai il nome della fascia dal nome del file
                     # Es: "Risultato_Estrazione_AM56_I fascia.xlsx" -> "I FASCIA"
@@ -239,11 +257,19 @@ def genera_pdf():
 
                 if province_sigle:
                     col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                    
+                    # --- DEBUG 4: Vediamo cosa contiene la colonna provincia ---
                     if col_ufficio:
+                        valori_unici = df[col_ufficio].astype(str).str.strip().str.upper().unique()
+                        logger.info(f"DEBUG 4: Colonna trovata: '{col_ufficio}'. Valori presenti nel file: {valori_unici}")
+                        
                         df[col_ufficio] = df[col_ufficio].astype(str).str.strip().str.upper()
                         df = df[df[col_ufficio].isin(province_sigle)]
                         df = df[df[col_ufficio].str.len() == 2]
+                        
+                        logger.info(f"DEBUG 4: Righe rimaste dopo il filtro provincia (cercavi {province_sigle}): {len(df)}")
                     else:
+                        logger.warning("DEBUG 4: Nessuna colonna 'UFFICIO' o 'PROVINCIA' trovata nel file Excel!")
                         df = pd.DataFrame()
 
                 if df.empty:
