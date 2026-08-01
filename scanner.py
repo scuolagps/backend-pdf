@@ -481,14 +481,14 @@ def genera_pdf():
                         pdf.ln(4) # Aggiungi spazio solo se non cambiamo pagina
                         
                     if region_name and region_name != current_region:
-                                current_region = region_name
-                                pdf.set_font("Arial", 'B', 12) 
-                                pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
-                            if prov_full_name:
-                                pdf.set_font("Arial", 'B', 10)
-                                pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
-                            pdf.ln(2)
-                            pdf.set_font("Arial", size=9)
+                        current_region = region_name
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
+                        if prov_full_name:
+                            pdf.set_font("Arial", 'B', 10)
+                            pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
+                        pdf.ln(2)
+                        pdf.set_font("Arial", size=9)
 
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
