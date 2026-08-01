@@ -466,13 +466,21 @@ def genera_pdf():
                         if prov_sigla != current_prov_sigla:
                             current_prov_sigla = prov_sigla
                             region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
-                            if pdf.get_y() + 20 > 190:
-                                pdf.add_page()
-                                # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
-                                draw_table_header(add_spacer=True)
-                                pdf.set_font("Arial", size=9)
-                            pdf.ln(4)
-                            if region_name and region_name != current_region:
+                    # Calcola lo spazio necessario per le intestazioni di regione/provincia
+                    spazio_necessario = 20  # Spazio base per provincia e margini
+                    if region_name and region_name != current_region:
+                        spazio_necessario += 10  # Spazio extra per la regione
+
+                    # Verifica se c'è spazio per l'intestazione E almeno una riga di dati
+                    if pdf.get_y() + spazio_necessario + row_height > 190:
+                        pdf.add_page()
+                        # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
+                        draw_table_header(add_spacer=True)
+                        pdf.set_font("Arial", size=9)
+                    else:
+                        pdf.ln(4) # Aggiungi spazio solo se non cambiamo pagina
+                        
+                    if region_name and region_name != current_region:
                                 current_region = region_name
                                 pdf.set_font("Arial", 'B', 12) 
                                 pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
