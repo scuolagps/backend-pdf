@@ -253,6 +253,16 @@ def genera_pdf():
             if not lista_dati:
                 continue
 
+            # Ordina i dati per fascia (I Fascia prima della II Fascia)
+            def get_fascia_order(fascia_str):
+                f = str(fascia_str).upper()
+                if 'I FASCIA' in f or '1 FASCIA' in f: return 0
+                if 'II FASCIA' in f or '2 FASCIA' in f: return 1
+                if 'III FASCIA' in f or '3 FASCIA' in f: return 2
+                return 3
+            
+            lista_dati.sort(key=lambda x: get_fascia_order(x[1]))
+
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
@@ -447,32 +457,49 @@ def genera_pdf():
                 row_height = 7
                 
                 for _, row in df.iterrows():
+                    # Variabili per tracciare se la provincia/regione è cambiata in questa iterazione
+                    prov_changed = False
+                    reg_changed = False
+                    
                     if col_ufficio:
                         prov_sigla = format_val(row[col_ufficio]).upper()
                         if prov_sigla != current_prov_sigla:
+                            prov_changed = True
                             current_prov_sigla = prov_sigla
                             region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
-                    spazio_necessario = 20
-                    if region_name and region_name != current_region:
-                        spazio_necessario += 10
+                            if region_name and region_name != current_region:
+                                reg_changed = True
+                                current_region = region_name
 
-                    if pdf.get_y() + spazio_necessario + row_height > 190:
-                        pdf.add_page()
-                        draw_table_header(add_spacer=True)
-                        pdf.set_font("Arial", size=9)
-                    else:
-                        pdf.ln(4)
+                    # Se la provincia è cambiata, stampiamo la sua intestazione
+                    if prov_changed:
+                        # Calcola lo spazio necessario
+                        spazio_necessario = 20  # Spazio base per provincia e margini
+                        if reg_changed:
+                            spazio_necessario += 10  # Spazio extra per la regione
+
+                        # Verifica se c'è spazio per l'intestazione E almeno una riga di dati
+                        if pdf.get_y() + spazio_necessario + row_height > 190:
+                            pdf.add_page()
+                            draw_table_header(add_spacer=True)
+                            pdf.set_font("Arial", size=9)
+                        else:
+                            pdf.ln(4) # Aggiungi spazio solo se non cambiamo pagina
                         
-                    if region_name and region_name != current_region:
-                        current_region = region_name
-                        pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
+                        # Stampa la regione SOLO se è cambiata
+                        if reg_changed and region_name:
+                            pdf.set_font("Arial", 'B', 12)
+                            pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
+                        
+                        # Stampa SEMPRE il nome della provincia se è cambiata
                         if prov_full_name:
                             pdf.set_font("Arial", 'B', 10)
                             pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
-                        pdf.ln(2)
+                            pdf.ln(2)
+                            
                         pdf.set_font("Arial", size=9)
 
+                    # Controllo standard per nuova pagina prima di stampare la riga dati
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
                         draw_table_header(add_spacer=True)
