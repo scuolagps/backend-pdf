@@ -538,10 +538,10 @@ def genera_bollettino():
     reg_set = {r.upper() for r in regioni_richieste}
     
     # Converti 'I_Fascia' in 'F1' e 'II_Fascia' in 'F2'
-    if 'I_FASCIA' in fascia_richiesta.upper():
-        fascia_filter = 'F1'
-    elif 'II_FASCIA' in fascia_richiesta.upper():
+    if fascia_richiesta.upper() == 'II_FASCIA':
         fascia_filter = 'F2'
+    elif fascia_richiesta.upper() == 'I_FASCIA':
+        fascia_filter = 'F1'
     else:
         fascia_filter = '' # Entrambe
 
@@ -566,6 +566,7 @@ def genera_bollettino():
     results = []
     current_prov = None
     current_region = None
+    current_prov_selected = False  # Traccia se la provincia attuale è tra quelle selezionate
     
     for _, row in df.iterrows():
         val_classe = str(row.get('Classe di concorso', '')).strip()
@@ -575,73 +576,78 @@ def genera_bollettino():
         is_nomina = val_classe.upper().startswith('NOMINA')
         is_data = any(cod in val_classe.upper() for cod in codici_validi)
 
-        # Se non è una riga nomina e non è una riga dati, è una riga Provincia
-        if not is_nomina and not is_data:
-            current_prov_norm = val_classe.upper().replace(" ", "").replace("'", "").replace("-", "")
+        if is_data:
+            # Se la riga è un dato utile, ma non siamo in una provincia selezionata, saltiamo
+            if not current_prov_selected or current_prov is None:
+                continue
+                
+            fascia_raw = str(row.get('Fascia', '')).strip().upper()
+            if fascia_raw not in ('F1', 'F2'):
+                continue
+                
+            if fascia_filter and fascia_raw != fascia_filter:
+                continue
+
+            # Estrai posizione e punteggio in modo sicuro
+            try:
+                pos_val = row.get('Posizione')
+                if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
+                    continue
+                pos = int(float(pos_val))
+                
+                punt_val = row.get('Punteggio')
+                if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
+                    continue
+                punt_raw = str(punt_val).replace(',', '.').replace('*', '')
+                punt = float(punt_raw)
+            except (ValueError, TypeError):
+                continue
+
+            # Trova o crea il raggruppamento Provincia + Fascia
+            key = (current_prov, current_region, fascia_raw)
+            existing = next((r for r in results if (r['provincia'], r['regione'], r['fascia']) == key), None)
             
-            # Reset variabili ricerca
-            current_prov = None
-            current_region = None
-            
-            # Controlla se la provincia è tra quelle selezionate
+            if not existing:
+                results.append({
+                    "regione": current_region,
+                    "provincia": current_prov,
+                    "fascia": fascia_raw,
+                    "primo_pos": pos,
+                    "primo_punt": punt,
+                    "ultimo_pos": pos,
+                    "ultimo_punt": punt
+                })
+            else:
+                if pos < existing['primo_pos']:
+                    existing['primo_pos'] = pos
+                    existing['primo_punt'] = punt
+                if pos > existing['ultimo_pos']:
+                    existing['ultimo_pos'] = pos
+                    existing['ultimo_punt'] = punt
+                    
+        elif not is_nomina:
+            # Potrebbe essere una riga Provincia (es. AGRIGENTO, CHIETI, ecc.)
+            matched_prov = False
             for sigla, (region, nome) in PROVINCE_DATA.items():
                 if val_classe.upper() == nome.upper():
                     prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
                     if (prov_set and prov_norm in prov_set) or \
                        (not prov_set and reg_set and region.upper() in reg_set) or \
                        (not prov_set and not reg_set):
+                        # Provincia trovata e selezionata dall'utente
                         current_prov = nome
                         current_region = region
+                        current_prov_selected = True
+                    else:
+                        # Provincia trovata ma NON selezionata dall'utente
+                        current_prov = nome
+                        current_region = region
+                        current_prov_selected = False
+                    matched_prov = True
                     break
-            continue
-
-        # Salta righe se non siamo in una provincia selezionata
-        if current_prov is None:
-            continue
-
-        # Salta separatori NOMINA N 1, N 2...
-        if is_nomina:
-            continue
-
-        # Riga dati utile (es. AM56)
-        fascia_raw = str(row.get('Fascia', '')).strip().upper()
-        if fascia_raw not in ('F1', 'F2'):
-            continue
             
-        if fascia_filter and fascia_raw != fascia_filter:
-            continue
-
-        try:
-            pos = int(float(row.get('Posizione', 0)))
-            punt_raw = str(row.get('Punteggio', '')).replace(',', '.').replace('*', '')
-            punt = float(punt_raw) if punt_raw and punt_raw != 'nan' else None
-        except (ValueError, TypeError):
-            continue
-
-        if punt is None:
-            continue
-
-        # Trova o crea il raggruppamento Provincia + Fascia
-        key = (current_prov, current_region, fascia_raw)
-        existing = next((r for r in results if (r['provincia'], r['regione'], r['fascia']) == key), None)
-        
-        if not existing:
-            results.append({
-                "regione": current_region,
-                "provincia": current_prov,
-                "fascia": fascia_raw,
-                "primo_pos": pos,
-                "primo_punt": punt,
-                "ultimo_pos": pos,
-                "ultimo_punt": punt
-            })
-        else:
-            if pos < existing['primo_pos']:
-                existing['primo_pos'] = pos
-                existing['primo_punt'] = punt
-            if pos > existing['ultimo_pos']:
-                existing['ultimo_pos'] = pos
-                existing['ultimo_punt'] = punt
+            # Se non ha matchato nessuna provincia, ignoriamo la riga senza azzerare current_prov
+            # (questo previene il bug che impediva di leggere l'Abruzzo)
 
     # Formatta l'output per il frontend
     out_data = []
@@ -655,7 +661,6 @@ def genera_bollettino():
         })
 
     return jsonify({"data": out_data})
-
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
