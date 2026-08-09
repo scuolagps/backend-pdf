@@ -602,29 +602,29 @@ def genera_bollettino():
             except (ValueError, TypeError):
                 continue
 
-            # Trova o crea il raggruppamento per Provincia (senza distinguere per fascia)
+            # Inizializza provincia se non presente
             if current_prov not in results:
                 results[current_prov] = {
                     "regione": current_region,
-                    "primo_pos": pos,
-                    "primo_punt": punt,
-                    "primo_fascia": fascia_raw,
-                    "ultimo_pos": pos,
-                    "ultimo_punt": punt,
-                    "ultimo_fascia": fascia_raw
+                    "nomine_totali": 0,
+                    "nomine_f1": 0,
+                    "nomine_f2": 0,
+                    "min_f1": None,
+                    "min_f2": None
                 }
-            else:
-                prov_data = results[current_prov]
-                # Il primo in assoluto ha la posizione più bassa
-                if pos < prov_data['primo_pos']:
-                    prov_data['primo_pos'] = pos
-                    prov_data['primo_punt'] = punt
-                    prov_data['primo_fascia'] = fascia_raw
-                # L'ultimo in assoluto ha la posizione più alta
-                if pos > prov_data['ultimo_pos']:
-                    prov_data['ultimo_pos'] = pos
-                    prov_data['ultimo_punt'] = punt
-                    prov_data['ultimo_fascia'] = fascia_raw
+            
+            prov_data = results[current_prov]
+            prov_data["nomine_totali"] += 1
+            
+            # Aggiorna i minimi per fascia (che corrispondono all'ultimo nominato in ordine di chiamata)
+            if fascia_raw == "F1":
+                prov_data["nomine_f1"] += 1
+                if prov_data["min_f1"] is None or punt < prov_data["min_f1"]:
+                    prov_data["min_f1"] = punt
+            elif fascia_raw == "F2":
+                prov_data["nomine_f2"] += 1
+                if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
+                    prov_data["min_f2"] = punt
                     
         elif not is_nomina:
             matched_prov = False
@@ -647,13 +647,21 @@ def genera_bollettino():
     # Formatta l'output per il frontend
     out_data = []
     for prov, r in results.items():
+        assorb_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
+        prob_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
+        prob_f2 = round((r["nomine_f2"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
+        
         out_data.append({
             "regione": r['regione'],
             "provincia": prov,
-            "primo_fascia": r['primo_fascia'],
-            "primo": f"{r['primo_punt']:.2f}".replace('.', ','),
-            "ultimo_fascia": r['ultimo_fascia'],
-            "ultimo": f"{r['ultimo_punt']:.2f}".replace('.', ',')
+            "nomine_totali": r["nomine_totali"],
+            "min_f1": f"{r['min_f1']:.2f}".replace('.', ',') if r['min_f1'] is not None else "N/D",
+            "min_f2": f"{r['min_f2']:.2f}".replace('.', ',') if r['min_f2'] is not None else "N/D",
+            "assorbimento_f1": assorb_f1,
+            "prob_f1": prob_f1,
+            "prob_f2": prob_f2,
+            "nomine_f1": r["nomine_f1"],
+            "nomine_f2": r["nomine_f2"]
         })
 
     return jsonify({"data": out_data})
