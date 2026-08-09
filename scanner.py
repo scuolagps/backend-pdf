@@ -136,6 +136,7 @@ def genera_pdf():
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
+    anno_richiesto = data.get('anno', 'N/D').strip()
 
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
@@ -168,8 +169,11 @@ def genera_pdf():
     pdf.set_font("Arial", size=10)
 
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, txt=sanitize_for_fpdf("Report Estrazione Dati Filtrati"), ln=True, align='C')
+    pdf.cell(0, 10, txt=sanitize_for_fpdf("Graduatorie provinciali di supplenza"), ln=True, align='C')
+    
     pdf.set_font("Arial", size=10)
+    safe_anno = sanitize_for_fpdf(anno_richiesto.upper() if anno_richiesto != 'N/D' else 'N/D')
+    pdf.cell(0, 10, txt=f"Anno: {safe_anno}", ln=True, align='C')
     
     safe_regioni = sanitize_for_fpdf(", ".join(regioni_richieste).upper() if regioni_richieste else 'TUTTE')
     safe_province = sanitize_for_fpdf(", ".join(province_nomi).upper() if province_nomi else 'TUTTE')
