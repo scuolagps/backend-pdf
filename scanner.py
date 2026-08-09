@@ -563,10 +563,10 @@ def genera_bollettino():
     # Pulizia colonne
     df.columns = [str(c).strip() for c in df.columns]
     
-    results = []
+    results = {}
     current_prov = None
     current_region = None
-    current_prov_selected = False  # Traccia se la provincia attuale è tra quelle selezionate
+    current_prov_selected = False  
     
     for _, row in df.iterrows():
         val_classe = str(row.get('Classe di concorso', '')).strip()
@@ -577,7 +577,6 @@ def genera_bollettino():
         is_data = any(cod in val_classe.upper() for cod in codici_validi)
 
         if is_data:
-            # Se la riga è un dato utile, ma non siamo in una provincia selezionata, saltiamo
             if not current_prov_selected or current_prov is None:
                 continue
                 
@@ -585,10 +584,10 @@ def genera_bollettino():
             if fascia_raw not in ('F1', 'F2'):
                 continue
                 
+            # Se l'utente ha filtrato per fascia, escludi l'altra
             if fascia_filter and fascia_raw != fascia_filter:
                 continue
 
-            # Estrai posizione e punteggio in modo sicuro
             try:
                 pos_val = row.get('Posizione')
                 if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
@@ -603,30 +602,31 @@ def genera_bollettino():
             except (ValueError, TypeError):
                 continue
 
-            # Trova o crea il raggruppamento Provincia + Fascia
-            key = (current_prov, current_region, fascia_raw)
-            existing = next((r for r in results if (r['provincia'], r['regione'], r['fascia']) == key), None)
-            
-            if not existing:
-                results.append({
+            # Trova o crea il raggruppamento per Provincia (senza distinguere per fascia)
+            if current_prov not in results:
+                results[current_prov] = {
                     "regione": current_region,
-                    "provincia": current_prov,
-                    "fascia": fascia_raw,
                     "primo_pos": pos,
                     "primo_punt": punt,
+                    "primo_fascia": fascia_raw,
                     "ultimo_pos": pos,
-                    "ultimo_punt": punt
-                })
+                    "ultimo_punt": punt,
+                    "ultimo_fascia": fascia_raw
+                }
             else:
-                if pos < existing['primo_pos']:
-                    existing['primo_pos'] = pos
-                    existing['primo_punt'] = punt
-                if pos > existing['ultimo_pos']:
-                    existing['ultimo_pos'] = pos
-                    existing['ultimo_punt'] = punt
+                prov_data = results[current_prov]
+                # Il primo in assoluto ha la posizione più bassa
+                if pos < prov_data['primo_pos']:
+                    prov_data['primo_pos'] = pos
+                    prov_data['primo_punt'] = punt
+                    prov_data['primo_fascia'] = fascia_raw
+                # L'ultimo in assoluto ha la posizione più alta
+                if pos > prov_data['ultimo_pos']:
+                    prov_data['ultimo_pos'] = pos
+                    prov_data['ultimo_punt'] = punt
+                    prov_data['ultimo_fascia'] = fascia_raw
                     
         elif not is_nomina:
-            # Potrebbe essere una riga Provincia (es. AGRIGENTO, CHIETI, ecc.)
             matched_prov = False
             for sigla, (region, nome) in PROVINCE_DATA.items():
                 if val_classe.upper() == nome.upper():
@@ -634,34 +634,29 @@ def genera_bollettino():
                     if (prov_set and prov_norm in prov_set) or \
                        (not prov_set and reg_set and region.upper() in reg_set) or \
                        (not prov_set and not reg_set):
-                        # Provincia trovata e selezionata dall'utente
                         current_prov = nome
                         current_region = region
                         current_prov_selected = True
                     else:
-                        # Provincia trovata ma NON selezionata dall'utente
                         current_prov = nome
                         current_region = region
                         current_prov_selected = False
                     matched_prov = True
                     break
-            
-            # Se non ha matchato nessuna provincia, ignoriamo la riga senza azzerare current_prov
-            # (questo previene il bug che impediva di leggere l'Abruzzo)
 
     # Formatta l'output per il frontend
     out_data = []
-    for r in results:
+    for prov, r in results.items():
         out_data.append({
             "regione": r['regione'],
-            "provincia": r['provincia'],
-            "fascia": r['fascia'],
+            "provincia": prov,
+            "primo_fascia": r['primo_fascia'],
             "primo": f"{r['primo_punt']:.2f}".replace('.', ','),
+            "ultimo_fascia": r['ultimo_fascia'],
             "ultimo": f"{r['ultimo_punt']:.2f}".replace('.', ',')
         })
 
     return jsonify({"data": out_data})
-
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
