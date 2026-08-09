@@ -139,7 +139,6 @@ def genera_pdf():
 
     if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
         return jsonify({"error": "Formato regioni/province non valido."}), 400
-        # SELEZIONA AUTOMATICAMENTE TUTTE LE PROVINCE DELLA REGIONE SE L'UTENTE NON HA SPECIFICATO LE PROVINCE
     if regioni_richieste and not province_nomi:
         for sigla, (region, nome) in PROVINCE_DATA.items():
             if region in regioni_richieste and nome not in province_nomi:
@@ -154,7 +153,7 @@ def genera_pdf():
         sigla = PROVINCE_SIGLE.get(prov)
         if sigla:
             province_sigle.append(sigla)
-    # --- DEBUG 1: Vediamo cosa arriva dal frontend ---
+            
     logger.info(f"DEBUG 1: Filtri ricevuti -> Classi: {classi_selezionate} | Province Nomi: {province_nomi} | Sigle generate: {province_sigle} | Fascia: '{fascia_richiesta}' (Normalizzata: '{normalize_string(fascia_richiesta)}')")
     codici_validi = []
     for codice in classi_selezionate:
@@ -188,7 +187,6 @@ def genera_pdf():
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
-    # Mappa per normalizzare i nomi delle province in sigle
     NOME_TO_SIGLA = {nome.upper().replace(" ", "").replace("'", ""): sigla for sigla, (region, nome) in PROVINCE_DATA.items()}
 
     def to_sigla(val):
@@ -204,14 +202,13 @@ def genera_pdf():
         codice_norm = normalize_string(codice)
         
         file_da_elaborare = []
-        nomi_file_visti = set() # Previene elaborazione doppia
+        nomi_file_visti = set()
         
         for f in root_files:
             nome_file_norm = normalize_string(f.name)
             if codice_norm in nome_file_norm and nome_file_norm.endswith(".XLSX"):
                 if f.name in nomi_file_visti:
-                    continue # Salta se già processato
-                
+                    continue
                 parte_dopo = nome_file_norm.rsplit(codice_norm, 1)[-1]
                 if fascia_norm:
                     if parte_dopo == fascia_norm + ".XLSX":
@@ -255,13 +252,11 @@ def genera_pdf():
             for df, nome_fascia in lista_dati:
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
 
-                # RINOMINA COLONNE LUNGHE
                 df.rename(columns={
                     'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA',
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
                 }, inplace=True, errors='ignore')
 
-                # TROVA COLONNE
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
                 
@@ -275,7 +270,6 @@ def genera_pdf():
                 else:
                     df = pd.DataFrame()
 
-                # RIMUOVI RIGHE VUOTE (separatori di provincia)
                 if col_cognome and not df.empty:
                     df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
                     df = df.dropna(subset=[col_cognome])
@@ -283,7 +277,6 @@ def genera_pdf():
                 if df.empty:
                     continue
 
-                # --- ELIMINAZIONE COLONNE RICHIESTE ---
                 useless_cols = [
                     'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE',
                     'INCLUSIONE CON RISERVA',
@@ -293,7 +286,6 @@ def genera_pdf():
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
-                # --- CALCOLO STATISTICHE RAPPORTO S/C E PUNTEGGI ---
                 col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
                 
                 counts = df[col_ufficio].value_counts()
@@ -336,9 +328,7 @@ def genera_pdf():
                         if top_candidate != "N/D": stats_data[nome_esteso]["top"] = top_candidate
                         if bottom_candidate != "N/D": stats_data[nome_esteso]["bottom"] = bottom_candidate
                         if median_score > 0: stats_data[nome_esteso]["median"] = median_score
-                # ----------------------------------------------------
 
-                # --- INTESTAZIONE FASCIA ---
                 pdf.set_font("Arial", 'B', 12)
                 pdf.cell(0, 10, txt=sanitize_for_fpdf(nome_fascia), ln=True, align='L')
                 pdf.ln(2)
@@ -352,7 +342,6 @@ def genera_pdf():
                     v = str(val).strip().lower()
                     return v in ['nan', '*', 'none', '', '-']
                 
-                # --- MANTENIMENTO COLONNE CON UN SOLO VALORE (AM56, 1, MM) ---
                 cols_to_drop = []
                 keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA']
                 for col in df.columns:
@@ -377,7 +366,6 @@ def genera_pdf():
                         except ValueError: pass
                     return s
 
-                # --- CALCOLO LARGHEZZE COLONNE ---
                 col_widths = {}
                 total_width = 0
                 for col in df.columns:
@@ -405,7 +393,6 @@ def genera_pdf():
                 if total_width > 0:
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
-                    # Calcola la larghezza totale scalata per la riga vuota
                     total_width_scaled = sum(col_widths.values())
 
                 pdf.set_font("Arial", 'B', 9)
@@ -414,7 +401,6 @@ def genera_pdf():
                 max_header_height = max_lines * line_height
                 header_texts = {}
 
-                # PRE-FORMATTAZIONE TESTO INTESTAZIONE PER AVERE ESATTAMENTE 2 RIGHE
                 for col in df.columns:
                     char_limit = max(1, int(col_widths[col] / 2.0))
                     words = str(col).split()
@@ -437,22 +423,18 @@ def genera_pdf():
                         
                     header_texts[col] = "\n".join(lines)
 
-                # FUNZIONE DISEGNA INTESTAZIONE CON SPAZIATURA OPZIONALE
                 def draw_table_header(add_spacer=False):
                     y_start = pdf.get_y()
                     for col in df.columns:
                         x_start = pdf.get_x()
                         text = header_texts[col]
-                        # ALLINEAMENTO A SINISTRA PER TUTTE LE COLONNE
                         pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
                         pdf.set_xy(x_start + col_widths[col], y_start)
                     pdf.set_y(y_start + max_header_height)
                     
-                    # AGGIUNGI RIGA VUOTA PER SEPARARE (DALLA SECONDA PAGINA)
                     if add_spacer:
                         pdf.cell(total_width_scaled, line_height, "", border=0, ln=1)
 
-                # Prima intestazione (nessuno spacer extra richiesto in genere sulla prima)
                 draw_table_header(add_spacer=False)
 
                 current_prov_sigla = None
@@ -466,19 +448,16 @@ def genera_pdf():
                         if prov_sigla != current_prov_sigla:
                             current_prov_sigla = prov_sigla
                             region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
-                    # Calcola lo spazio necessario per le intestazioni di regione/provincia
-                    spazio_necessario = 20  # Spazio base per provincia e margini
+                    spazio_necessario = 20
                     if region_name and region_name != current_region:
-                        spazio_necessario += 10  # Spazio extra per la regione
+                        spazio_necessario += 10
 
-                    # Verifica se c'è spazio per l'intestazione E almeno una riga di dati
                     if pdf.get_y() + spazio_necessario + row_height > 190:
                         pdf.add_page()
-                        # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
                         draw_table_header(add_spacer=True)
                         pdf.set_font("Arial", size=9)
                     else:
-                        pdf.ln(4) # Aggiungi spazio solo se non cambiamo pagina
+                        pdf.ln(4)
                         
                     if region_name and region_name != current_region:
                         current_region = region_name
@@ -492,7 +471,6 @@ def genera_pdf():
 
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
-                        # SULLA NUOVA PAGINA, AGGIUNGI SPAZER
                         draw_table_header(add_spacer=True)
                         pdf.set_font("Arial", size=9)
 
@@ -501,10 +479,7 @@ def genera_pdf():
                         char_lim = max(1, int(col_widths[col] / 2.0))
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
-                        
-                        # ALLINEAMENTO A SINISTRA PER TUTTI I DATI
                         align = 'L'
-                            
                         pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
                     pdf.ln(row_height)
 
@@ -533,6 +508,154 @@ def genera_pdf():
         "pdf_base64": pdf_base64,
         "stats": stats_data
     })
+
+
+@app.route('/genera-bollettino', methods=['POST', 'OPTIONS'])
+def genera_bollettino():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+
+    if not g:
+         return jsonify({"error": "Server non configurato correttamente (Token GitHub mancante)."}), 500
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Payload non valido."}), 400
+
+    classi_selezionate = data.get('classi', [])
+    province_nomi = data.get('province', [])
+    regioni_richieste = data.get('regioni', [])
+    fascia_richiesta = data.get('fascia', '').strip()
+
+    # Mappa le province se l'utente ha selezionato solo le regioni
+    if regioni_richieste and not province_nomi:
+        for sigla, (region, nome) in PROVINCE_DATA.items():
+            if region in regioni_richieste and nome not in province_nomi:
+                province_nomi.append(nome)
+
+    # Normalizza i filtri per il confronto
+    prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
+    reg_set = {r.upper() for r in regioni_richieste}
+    
+    # Converti 'I_Fascia' in 'F1' e 'II_Fascia' in 'F2'
+    if 'I_FASCIA' in fascia_richiesta.upper():
+        fascia_filter = 'F1'
+    elif 'II_FASCIA' in fascia_richiesta.upper():
+        fascia_filter = 'F2'
+    else:
+        fascia_filter = '' # Entrambe
+
+    # Codici classe richiesti (es. ["AM56"])
+    codici_validi = [c.split(' - ')[0].strip().upper() for c in classi_selezionate]
+
+    try:
+        repo = g.get_repo(REPO_NAME)
+        contents = repo.get_contents("")
+        file_obj = next((f for f in contents if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.XLSX"), None)
+        if not file_obj:
+            return jsonify({"error": "File Risultato_Estrazione_Bollettini.xlsx non trovato nel repository."}), 404
+        
+        file_data = file_obj.decoded_content
+        df = pd.read_excel(io.BytesIO(file_data), engine='openpyxl')
+    except Exception as e:
+        return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
+
+    # Pulizia colonne
+    df.columns = [str(c).strip() for c in df.columns]
+    
+    results = []
+    current_prov = None
+    current_region = None
+    
+    for _, row in df.iterrows():
+        val_classe = str(row.get('Classe di concorso', '')).strip()
+        if not val_classe or val_classe in ('nan', 'None'):
+            continue
+            
+        is_nomina = val_classe.upper().startswith('NOMINA')
+        is_data = any(cod in val_classe.upper() for cod in codici_validi)
+
+        # Se non è una riga nomina e non è una riga dati, è una riga Provincia
+        if not is_nomina and not is_data:
+            current_prov_norm = val_classe.upper().replace(" ", "").replace("'", "").replace("-", "")
+            
+            # Reset variabili ricerca
+            current_prov = None
+            current_region = None
+            
+            # Controlla se la provincia è tra quelle selezionate
+            for sigla, (region, nome) in PROVINCE_DATA.items():
+                if val_classe.upper() == nome.upper():
+                    prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
+                    if (prov_set and prov_norm in prov_set) or \
+                       (not prov_set and reg_set and region.upper() in reg_set) or \
+                       (not prov_set and not reg_set):
+                        current_prov = nome
+                        current_region = region
+                    break
+            continue
+
+        # Salta righe se non siamo in una provincia selezionata
+        if current_prov is None:
+            continue
+
+        # Salta separatori NOMINA N 1, N 2...
+        if is_nomina:
+            continue
+
+        # Riga dati utile (es. AM56)
+        fascia_raw = str(row.get('Fascia', '')).strip().upper()
+        if fascia_raw not in ('F1', 'F2'):
+            continue
+            
+        if fascia_filter and fascia_raw != fascia_filter:
+            continue
+
+        try:
+            pos = int(float(row.get('Posizione', 0)))
+            punt_raw = str(row.get('Punteggio', '')).replace(',', '.').replace('*', '')
+            punt = float(punt_raw) if punt_raw and punt_raw != 'nan' else None
+        except (ValueError, TypeError):
+            continue
+
+        if punt is None:
+            continue
+
+        # Trova o crea il raggruppamento Provincia + Fascia
+        key = (current_prov, current_region, fascia_raw)
+        existing = next((r for r in results if (r['provincia'], r['regione'], r['fascia']) == key), None)
+        
+        if not existing:
+            results.append({
+                "regione": current_region,
+                "provincia": current_prov,
+                "fascia": fascia_raw,
+                "primo_pos": pos,
+                "primo_punt": punt,
+                "ultimo_pos": pos,
+                "ultimo_punt": punt
+            })
+        else:
+            if pos < existing['primo_pos']:
+                existing['primo_pos'] = pos
+                existing['primo_punt'] = punt
+            if pos > existing['ultimo_pos']:
+                existing['ultimo_pos'] = pos
+                existing['ultimo_punt'] = punt
+
+    # Formatta l'output per il frontend
+    out_data = []
+    for r in results:
+        out_data.append({
+            "regione": r['regione'],
+            "provincia": r['provincia'],
+            "fascia": r['fascia'],
+            "primo": f"{r['primo_punt']:.2f}".replace('.', ','),
+            "ultimo": f"{r['ultimo_punt']:.2f}".replace('.', ',')
+        })
+
+    return jsonify({"data": out_data})
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
