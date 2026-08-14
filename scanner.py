@@ -246,6 +246,7 @@ def genera_pdf():
     for codice in codici_validi:
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_norm = normalize_string(codice)
+        expected_prefix = f"RISULTATOESTRAZIONE{codice_norm}"
         
         file_da_elaborare = []
         nomi_file_visti = set()
@@ -255,10 +256,14 @@ def genera_pdf():
                 continue
                 
             nome_file_norm = normalize_string(f.name)
-            if codice_norm in nome_file_norm and (nome_file_norm.endswith(".XLSX") or nome_file_norm.endswith(".XLS")):
+            
+            # MATCH ESATTO: Il file deve chiamarsi esattamente "Risultato_Estrazione_<CODICE>..." per evitare di beccare A030 quando si cerca A040
+            if nome_file_norm.startswith(expected_prefix) and (nome_file_norm.endswith(".XLSX") or nome_file_norm.endswith(".XLS")):
                 if f.name in nomi_file_visti:
                     continue
-                parte_dopo = nome_file_norm.rsplit(codice_norm, 1)[-1]
+                    
+                parte_dopo = nome_file_norm[len(expected_prefix):]
+                
                 if fascia_norm:
                     if parte_dopo == fascia_norm + ".XLSX" or parte_dopo == fascia_norm + ".XLS":
                         file_da_elaborare.append(f)
@@ -322,6 +327,11 @@ def genera_pdf():
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
                 }, inplace=True, errors='ignore')
 
+                # FILTRO RIGOROSO: teniamo solo le righe che contengono il codice classe esatto
+                col_classe = next((col for col in df.columns if 'CODICE GRADUATORIA' in str(col).upper()), None)
+                if col_classe and not df.empty:
+                    df = df[df[col_classe].astype(str).str.upper().str.contains(codice_norm, na=False)]
+
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
                 
@@ -346,7 +356,8 @@ def genera_pdf():
                     'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE',
                     'INCLUSIONE CON RISERVA',
                     'COGNOME',
-                    'NOME'
+                    'NOME',
+                    'ORIGINE' # Rimossa colonna Origine
                 ]
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
