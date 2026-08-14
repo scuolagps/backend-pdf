@@ -2,8 +2,9 @@ import os
 import re
 import io
 import logging
+import zipfile
 from flask import Flask, request, send_file, jsonify
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 import pandas as pd
 from github import Github
 from github.GithubException import UnknownObjectException
@@ -42,7 +43,6 @@ g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
 if not g:
     logger.error("ATTENZIONE: GITHUB_TOKEN non trovato nelle variabili d'ambiente!")
 
-CODICE_CLASSE_PATTERN = re.compile(r'^[A-Z0-9]{1,10}$')
 MAX_CLASSI = 20
 MAX_ROWS_PDF = 500
 
@@ -119,8 +119,28 @@ def sanitize_for_fpdf(text):
 def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
+def fix_excel_encoding(file_data):
+    """Corregge il problema 'unsupported encoding: none' nei file xlsx generati da software non standard."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(file_data))
+        fixed_data = io.BytesIO()
+        with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for item in z.infolist():
+                content = z.read(item.filename)
+                if item.filename.endswith('.xml'):
+                    content_str = content.decode('utf-8', errors='ignore')
+                    if 'encoding="none"' in content_str.lower() or "encoding='none'" in content_str.lower():
+                        content_str = re.sub(r'encoding=["\']none["\']', 'encoding="UTF-8"', content_str, flags=re.IGNORECASE)
+                        content = content_str.encode('utf-8')
+                zf.writestr(item, content)
+        return fixed_data.getvalue()
+    except zipfile.BadZipFile:
+        return file_data
+    except Exception:
+        return file_data
+
 def get_all_repo_files(repo, path=""):
-    """Funzione ricorsiva per scansionare tutto il repo e trovare i file excel in qualsiasi sottocartella."""
+    """Scansiona tutto il repo per trovare i file excel in qualsiasi sottocartella."""
     contents = repo.get_contents(path)
     files = []
     for content in contents:
@@ -129,28 +149,6 @@ def get_all_repo_files(repo, path=""):
         else:
             files.append(content)
     return files
-
-def read_excel_with_auto_sheet(file_bytes):
-    """
-    Legge un file Excel e restituisce il primo DataFrame che contiene
-    le colonne tipiche delle graduatorie (UFFICIO PROVINCIALE o COGNOME).
-    Se nessun foglio è valido, restituisce il primo foglio.
-    """
-    import pandas as pd
-    from io import BytesIO
-
-    xls = pd.ExcelFile(BytesIO(file_bytes))
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet_name, engine='openpyxl')
-        # Controlla se il DataFrame contiene colonne rilevanti
-        cols = [str(c).upper() for c in df.columns]
-        if any('UFFICIO' in c or 'PROVINCIA' in c for c in cols) and \
-           any('COGNOME' in c for c in cols):
-            logger.info(f"Foglio selezionato: '{sheet_name}' con {len(df)} righe")
-            return df
-    # Se nessun foglio è valido, restituisci il primo
-    logger.warning("Nessun foglio con le colonne attese, restituisco il primo foglio")
-    return pd.read_excel(BytesIO(file_bytes), engine='openpyxl')
 
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
@@ -198,19 +196,19 @@ def genera_pdf():
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Arial", size=10)
+    pdf.set_font("Helvetica", size=10)
 
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, txt=sanitize_for_fpdf("Graduatorie provinciali di supplenza"), ln=True, align='C')
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, text=sanitize_for_fpdf("Graduatorie provinciali di supplenza"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     
-    pdf.set_font("Arial", size=10)
+    pdf.set_font("Helvetica", size=10)
     safe_anno = sanitize_for_fpdf(anno_richiesto.upper() if anno_richiesto != 'N/D' else 'N/D')
-    pdf.cell(0, 10, txt=f"Anno: {safe_anno}", ln=True, align='C')
+    pdf.cell(0, 10, text=f"Anno: {safe_anno}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     
     safe_regioni = sanitize_for_fpdf(", ".join(regioni_richieste).upper() if regioni_richieste else 'TUTTE')
     safe_province = sanitize_for_fpdf(", ".join(province_nomi).upper() if province_nomi else 'TUTTE')
     filtro_luogo = f"Regioni: {safe_regioni} | Province: {safe_province}"
-    pdf.cell(0, 10, txt=filtro_luogo, ln=True, align='C')
+    pdf.cell(0, 10, text=filtro_luogo, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     pdf.ln(5)
 
     trovato_almeno_uno = False
@@ -262,8 +260,8 @@ def genera_pdf():
             logger.warning(f"Nessun file trovato per il codice: {codice}")
             continue
 
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Classe di Concorso: {codice}"), ln=True)
+        pdf.set_font("Helvetica", 'B', 12)
+        pdf.cell(0, 10, text=sanitize_for_fpdf(f"Classe di Concorso: {codice}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
 
         try:
@@ -276,11 +274,11 @@ def genera_pdf():
                     if len(file_data) > 10 * 1024 * 1024: 
                         continue
                         
-                    # Leggi il foglio giusto automaticamente
-                    df_temp = read_excel_with_auto_sheet(file_data)
-                    if df_temp.empty:
-                        logger.warning(f"File {file_trovato.name} letto ma DataFrame vuoto")
-                        continue
+                    # FIX ENCODING
+                    fixed_data = fix_excel_encoding(file_data)
+                        
+                    excel_io = io.BytesIO(fixed_data)
+                    df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
                     fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").replace(".xls", "").strip().upper()
                     if not fascia_nome:
@@ -328,7 +326,6 @@ def genera_pdf():
                     df = df.dropna(subset=[col_cognome])
 
                 if df.empty:
-                    logger.info(f"Nessun dato per la provincia selezionata nel file {nome_fascia}")
                     continue
 
                 useless_cols = [
@@ -383,14 +380,14 @@ def genera_pdf():
                         if bottom_candidate != "N/D": stats_data[nome_esteso]["bottom"] = bottom_candidate
                         if median_score > 0: stats_data[nome_esteso]["median"] = median_score
 
-                pdf.set_font("Arial", 'B', 12)
-                pdf.cell(0, 10, txt=sanitize_for_fpdf(nome_fascia), ln=True, align='L')
+                pdf.set_font("Helvetica", 'B', 12)
+                pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
                 pdf.ln(2)
 
                 if len(df) > MAX_ROWS_PDF:
                     df = df.head(MAX_ROWS_PDF)
-                    pdf.set_font("Arial", 'I', 8)
-                    pdf.cell(0, 6, txt=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), ln=True)
+                    pdf.set_font("Helvetica", 'I', 8)
+                    pdf.cell(0, 6, text=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
                 def is_empty(val):
                     v = str(val).strip().lower()
@@ -449,7 +446,7 @@ def genera_pdf():
                     for col in col_widths: col_widths[col] *= scale
                     total_width_scaled = sum(col_widths.values())
 
-                pdf.set_font("Arial", 'B', 9)
+                pdf.set_font("Helvetica", 'B', 9)
                 line_height = 5
                 max_lines = 2
                 max_header_height = max_lines * line_height
@@ -487,13 +484,13 @@ def genera_pdf():
                     pdf.set_y(y_start + max_header_height)
                     
                     if add_spacer:
-                        pdf.cell(total_width_scaled, line_height, "", border=0, ln=1)
+                        pdf.cell(total_width_scaled, line_height, text="", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
                 draw_table_header(add_spacer=False)
 
                 current_prov_sigla = None
                 current_region = None
-                pdf.set_font("Arial", size=9)
+                pdf.set_font("Helvetica", size=9)
                 row_height = 7
                 
                 for _, row in df.iterrows():
@@ -518,25 +515,25 @@ def genera_pdf():
                         if pdf.get_y() + spazio_necessario + row_height > 190:
                             pdf.add_page()
                             draw_table_header(add_spacer=True)
-                            pdf.set_font("Arial", size=9)
+                            pdf.set_font("Helvetica", size=9)
                         else:
                             pdf.ln(4) 
                         
                         if reg_changed and region_name:
-                            pdf.set_font("Arial", 'B', 12)
-                            pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
+                            pdf.set_font("Helvetica", 'B', 12)
+                            pdf.cell(0, 7, text=sanitize_for_fpdf(region_name.upper()), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
                         
                         if prov_full_name:
-                            pdf.set_font("Arial", 'B', 10)
-                            pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
+                            pdf.set_font("Helvetica", 'B', 10)
+                            pdf.cell(0, 6, text=sanitize_for_fpdf(prov_full_name.upper()), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
                             pdf.ln(2)
                             
-                        pdf.set_font("Arial", size=9)
+                        pdf.set_font("Helvetica", size=9)
 
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
                         draw_table_header(add_spacer=True)
-                        pdf.set_font("Arial", size=9)
+                        pdf.set_font("Helvetica", size=9)
 
                     for col in df.columns:
                         valore = sanitize_for_fpdf(format_val(row[col]))
@@ -552,18 +549,14 @@ def genera_pdf():
             
         except Exception as e:
             logger.error(f"Errore elaborazione file: {str(e)}", exc_info=True)
-            pdf.set_font("Arial", 'I', 10)
-            pdf.cell(0, 10, txt=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), ln=True)
+            pdf.set_font("Helvetica", 'I', 10)
+            pdf.cell(0, 10, text=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(5)
 
     if not trovato_almeno_uno:
-        pdf.cell(0, 10, txt="Nessun dato disponibile per i filtri selezionati.", ln=True, align='C')
+        pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
 
-    pdf_string = pdf.output(dest='S')
-    if isinstance(pdf_string, str):
-        pdf_bytes = pdf_string.encode('latin-1')
-    else:
-        pdf_bytes = pdf_string
+    pdf_bytes = pdf.output()
 
     import base64
     pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
@@ -610,13 +603,14 @@ def genera_bollettino():
 
     try:
         repo = g.get_repo(REPO_NAME)
-        contents = repo.get_contents("")
-        file_obj = next((f for f in contents if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.XLSX"), None)
+        root_files = get_all_repo_files(repo)
+        file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.XLSX"), None)
         if not file_obj:
             return jsonify({"error": "File Risultato_Estrazione_Bollettini.xlsx non trovato nel repository."}), 404
         
         file_data = file_obj.decoded_content
-        df = pd.read_excel(io.BytesIO(file_data), engine='openpyxl')
+        fixed_data = fix_excel_encoding(file_data)
+        df = pd.read_excel(io.BytesIO(fixed_data), engine='openpyxl')
     except Exception as e:
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
