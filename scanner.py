@@ -120,24 +120,38 @@ def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
 def fix_excel_encoding(file_data):
-    """Corregge il problema 'unsupported encoding: none' nei file xlsx con sostituzione aggressiva sui byte."""
+    """
+    Fixes invalid 'encoding' attributes inside .xlsx files.
+    Removes the encoding attribute entirely; XML defaults to UTF-8.
+    """
     try:
         z = zipfile.ZipFile(io.BytesIO(file_data))
         fixed_data = io.BytesIO()
         with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
             for item in z.infolist():
                 content = z.read(item.filename)
-                # Sostituzione grezza e aggressiva a livello di byte su tutti i file interni
-                content = re.sub(rb'encoding\s*=\s*["\']?none["\']?', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
+                # Remove the whole encoding attribute, e.g. encoding="none", encoding='NONE', encoding = "none", etc.
+                # Pattern: 'encoding' followed by whitespace, '=', whitespace, optional quotes, any non-quote chars, optional quotes, optional whitespace.
+                # We replace with empty string.
+                content = re.sub(
+                    rb'encoding\s*=\s*["\']?[^"\'\s>]*["\']?\s*',
+                    b'',
+                    content,
+                    flags=re.IGNORECASE
+                )
                 zf.writestr(item, content)
         return fixed_data.getvalue()
     except zipfile.BadZipFile:
-        # Se non è uno zip (es. è un vecchio XML o HTML salvato come xlsx), correggiamo direttamente i bytes
-        return re.sub(rb'encoding\s*=\s*["\']?none["\']?', b'encoding="UTF-8"', file_data, flags=re.IGNORECASE)
+        # If it's not a zip (e.g., old .xls or HTML), do a best-effort removal on the raw bytes.
+        return re.sub(
+            rb'encoding\s*=\s*["\']?[^"\'\s>]*["\']?\s*',
+            b'',
+            file_data,
+            flags=re.IGNORECASE
+        )
     except Exception as e:
         logger.error(f"Errore in fix_excel_encoding: {str(e)}")
         return file_data
-
 def get_all_repo_files(repo, path=""):
     """Scansiona tutto il repo per trovare i file excel in qualsiasi sottocartella."""
     contents = repo.get_contents(path)
