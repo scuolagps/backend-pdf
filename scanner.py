@@ -120,23 +120,22 @@ def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
 def fix_excel_encoding(file_data):
-    """Corregge il problema 'unsupported encoding: none' nei file xlsx generati da software non standard."""
+    """Corregge il problema 'unsupported encoding: none' nei file xlsx con sostituzione aggressiva sui byte."""
     try:
         z = zipfile.ZipFile(io.BytesIO(file_data))
         fixed_data = io.BytesIO()
         with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
             for item in z.infolist():
                 content = z.read(item.filename)
-                if item.filename.endswith('.xml'):
-                    content_str = content.decode('utf-8', errors='ignore')
-                    if 'encoding="none"' in content_str.lower() or "encoding='none'" in content_str.lower():
-                        content_str = re.sub(r'encoding=["\']none["\']', 'encoding="UTF-8"', content_str, flags=re.IGNORECASE)
-                        content = content_str.encode('utf-8')
+                # Sostituzione grezza e aggressiva a livello di byte su tutti i file interni
+                content = re.sub(rb'encoding\s*=\s*["\']?none["\']?', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
                 zf.writestr(item, content)
         return fixed_data.getvalue()
     except zipfile.BadZipFile:
-        return file_data
-    except Exception:
+        # Se non è uno zip (es. è un vecchio XML o HTML salvato come xlsx), correggiamo direttamente i bytes
+        return re.sub(rb'encoding\s*=\s*["\']?none["\']?', b'encoding="UTF-8"', file_data, flags=re.IGNORECASE)
+    except Exception as e:
+        logger.error(f"Errore in fix_excel_encoding: {str(e)}")
         return file_data
 
 def get_all_repo_files(repo, path=""):
@@ -216,7 +215,6 @@ def genera_pdf():
     
     try:
         repo = g.get_repo(REPO_NAME)
-        # Scansiona ricorsivamente TUTTO il repository per trovare i file Excel
         root_files = get_all_repo_files(repo)
         logger.info(f"Trovati {len(root_files)} file totali nel repository.")
     except Exception as e:
@@ -274,7 +272,7 @@ def genera_pdf():
                     if len(file_data) > 10 * 1024 * 1024: 
                         continue
                         
-                    # FIX ENCODING
+                    # FIX ENCODING AGGRESSIVO
                     fixed_data = fix_excel_encoding(file_data)
                         
                     excel_io = io.BytesIO(fixed_data)
