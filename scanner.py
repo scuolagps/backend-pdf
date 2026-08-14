@@ -245,8 +245,7 @@ def genera_pdf():
 
     for codice in codici_validi:
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
-        codice_norm = normalize_string(codice)
-        expected_prefix = f"RISULTATOESTRAZIONE{codice_norm}"
+        codice_upper = codice.upper()
         
         file_da_elaborare = []
         nomi_file_visti = set()
@@ -255,22 +254,28 @@ def genera_pdf():
             if hasattr(f, 'type') and f.type != 'file':
                 continue
                 
-            nome_file_norm = normalize_string(f.name)
-            
-            # MATCH ESATTO: Il file deve chiamarsi esattamente "Risultato_Estrazione_<CODICE>..." per evitare di beccare A030 quando si cerca A040
-            if nome_file_norm.startswith(expected_prefix) and (nome_file_norm.endswith(".XLSX") or nome_file_norm.endswith(".XLS")):
-                if f.name in nomi_file_visti:
-                    continue
-                    
-                parte_dopo = nome_file_norm[len(expected_prefix):]
+            if f.name.startswith('~$'):
+                continue
                 
-                if fascia_norm:
-                    if parte_dopo == fascia_norm + ".XLSX" or parte_dopo == fascia_norm + ".XLS":
+            # MATCH ESATTO SPLITTANDO IL NOME FILE: "Risultato_Estrazione_A040_I_Fascia.xlsx"
+            # parts sarà ["Risultato", "Estrazione", "A040", "I", "Fascia.xlsx"]
+            parts = f.name.split('_')
+            if len(parts) >= 4 and parts[0] == 'Risultato' and parts[1] == 'Estrazione':
+                file_codice = parts[2]
+                if file_codice.upper() == codice_upper:
+                    # Il codice corrisponde ESATTAMENTE
+                    if f.name in nomi_file_visti:
+                        continue
+                        
+                    if fascia_norm:
+                        # Ricostruisco la parte della fascia dal nome file
+                        file_fascia_norm = normalize_string("_".join(parts[3:]).replace('.xlsx', '').replace('.xls', ''))
+                        if file_fascia_norm == fascia_norm:
+                            file_da_elaborare.append(f)
+                            nomi_file_visti.add(f.name)
+                    else:
                         file_da_elaborare.append(f)
                         nomi_file_visti.add(f.name)
-                else:
-                    file_da_elaborare.append(f)
-                    nomi_file_visti.add(f.name)
 
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
@@ -327,10 +332,33 @@ def genera_pdf():
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
                 }, inplace=True, errors='ignore')
 
-                # FILTRO RIGOROSO: teniamo solo le righe che contengono il codice classe esatto
-                col_classe = next((col for col in df.columns if 'CODICE GRADUATORIA' in str(col).upper()), None)
+                # --- FILTRO RIGOROSO SULLE RIGHE ---
+                # Trova la colonna che contiene il codice classe
+                col_classe = None
+                for col in df.columns:
+                    col_upper = str(col).upper()
+                    if 'CODICE' in col_upper and 'GRADUATORIA' in col_upper:
+                        col_classe = col
+                        break
+                    if 'CLASSE' in col_upper and 'CONCORSO' in col_upper:
+                        col_classe = col
+                        break
+                
                 if col_classe and not df.empty:
-                    df = df[df[col_classe].astype(str).str.upper().str.contains(codice_norm, na=False)]
+                    # Regex per trovare tutti i codici classe italiani all'interno della stringa
+                    class_regex = re.compile(r'\b(A0\d{2}|A[A-Z]\d{2}|A[A-Z]\d{1}[A-Z]|ADMM)\b', re.IGNORECASE)
+                    
+                    def is_other_class(val):
+                        if pd.isna(val): return False
+                        val_str = str(val).upper()
+                        matches = class_regex.findall(val_str)
+                        # Se trova dei codici e NESSUNO è quello selezionato, è un'altra classe
+                        if matches:
+                            return not any(m.upper() == codice_upper for m in matches)
+                        return False
+                    
+                    # Manteniamo solo le righe che NON appartengono ad altre classi
+                    df = df[~df[col_classe].apply(is_other_class)]
 
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
@@ -357,53 +385,54 @@ def genera_pdf():
                     'INCLUSIONE CON RISERVA',
                     'COGNOME',
                     'NOME',
-                    'ORIGINE' # Rimossa colonna Origine
+                    'ORIGINE'
                 ]
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
                 col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
                 
-                counts = df[col_ufficio].value_counts()
-                for sigla, count in counts.items():
-                    sigla_str = str(sigla).upper()
-                    region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
-                    
-                    num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
-                    num_candidati = int(count)
-                    rapporto = round(num_scuole / num_candidati, 4) if num_candidati > 0 else 0
-                    
-                    top_candidate = "N/D"
-                    bottom_candidate = "N/D"
-                    median_score = 0.0
-                    
-                    if col_punteggio_sep:
-                        prov_df = df[df[col_ufficio] == sigla_str].copy()
-                        prov_df['punteggio_num'] = prov_df[col_punteggio_sep].astype(str).str.replace(',', '.').str.replace('*', '').str.extract(r'(\d+\.?\d*)')[0]
-                        prov_df = prov_df.dropna(subset=['punteggio_num'])
-                        prov_df['punteggio_num'] = pd.to_numeric(prov_df['punteggio_num'], errors='coerce')
-                        prov_df = prov_df.dropna(subset=['punteggio_num'])
+                if col_ufficio:
+                    counts = df[col_ufficio].value_counts()
+                    for sigla, count in counts.items():
+                        sigla_str = str(sigla).upper()
+                        region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
                         
-                        if not prov_df.empty:
-                            idx_max = prov_df['punteggio_num'].idxmax()
-                            idx_min = prov_df['punteggio_num'].idxmin()
-                            max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
-                            min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
-                            median_score = float(prov_df['punteggio_num'].median())
-                            top_candidate = f"{max_score:.2f}".replace('.', ',')
-                            bottom_candidate = f"{min_score:.2f}".replace('.', ',')
+                        num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
+                        num_candidati = int(count)
+                        rapporto = round(num_scuole / num_candidati, 4) if num_candidati > 0 else 0
+                        
+                        top_candidate = "N/D"
+                        bottom_candidate = "N/D"
+                        median_score = 0.0
+                        
+                        if col_punteggio_sep:
+                            prov_df = df[df[col_ufficio] == sigla_str].copy()
+                            prov_df['punteggio_num'] = prov_df[col_punteggio_sep].astype(str).str.replace(',', '.').str.replace('*', '').str.extract(r'(\d+\.?\d*)')[0]
+                            prov_df = prov_df.dropna(subset=['punteggio_num'])
+                            prov_df['punteggio_num'] = pd.to_numeric(prov_df['punteggio_num'], errors='coerce')
+                            prov_df = prov_df.dropna(subset=['punteggio_num'])
                             
-                    if nome_esteso not in stats_data:
-                        stats_data[nome_esteso] = {
-                            "scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto,
-                            "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score
-                        }
-                    else:
-                        stats_data[nome_esteso]["candidati"] += num_candidati
-                        stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
-                        if top_candidate != "N/D": stats_data[nome_esteso]["top"] = top_candidate
-                        if bottom_candidate != "N/D": stats_data[nome_esteso]["bottom"] = bottom_candidate
-                        if median_score > 0: stats_data[nome_esteso]["median"] = median_score
+                            if not prov_df.empty:
+                                idx_max = prov_df['punteggio_num'].idxmax()
+                                idx_min = prov_df['punteggio_num'].idxmin()
+                                max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
+                                min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
+                                median_score = float(prov_df['punteggio_num'].median())
+                                top_candidate = f"{max_score:.2f}".replace('.', ',')
+                                bottom_candidate = f"{min_score:.2f}".replace('.', ',')
+                                
+                        if nome_esteso not in stats_data:
+                            stats_data[nome_esteso] = {
+                                "scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto,
+                                "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score
+                            }
+                        else:
+                            stats_data[nome_esteso]["candidati"] += num_candidati
+                            stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
+                            if top_candidate != "N/D": stats_data[nome_esteso]["top"] = top_candidate
+                            if bottom_candidate != "N/D": stats_data[nome_esteso]["bottom"] = bottom_candidate
+                            if median_score > 0: stats_data[nome_esteso]["median"] = median_score
 
                 pdf.set_font("Helvetica", 'B', 12)
                 pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -428,7 +457,7 @@ def genera_pdf():
                     
                     if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col:
                         cols_to_drop.append(col)
-                    if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower():
+                    if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower():
                         cols_to_drop.append(col)
                 df = df.drop(columns=cols_to_drop, errors='ignore')
 
