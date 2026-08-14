@@ -121,37 +121,58 @@ def normalize_string(s):
 
 def fix_excel_encoding(file_data):
     """
-    Fixes invalid 'encoding' attributes inside .xlsx files.
-    Removes the encoding attribute entirely; XML defaults to UTF-8.
+    Risolve in modo definitivo l'errore 'unsupported encoding: none' sostituendo 
+    aggressivamente ogni attributo encoding con encoding="UTF-8" a livello di byte.
     """
     try:
         z = zipfile.ZipFile(io.BytesIO(file_data))
         fixed_data = io.BytesIO()
+        has_fixed = False
+        
         with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
             for item in z.infolist():
                 content = z.read(item.filename)
-                # Remove the whole encoding attribute, e.g. encoding="none", encoding='NONE', encoding = "none", etc.
-                # Pattern: 'encoding' followed by whitespace, '=', whitespace, optional quotes, any non-quote chars, optional quotes, optional whitespace.
-                # We replace with empty string.
-                content = re.sub(
-                    rb'encoding\s*=\s*["\']?[^"\'\s>]*["\']?\s*',
-                    b'',
-                    content,
-                    flags=re.IGNORECASE
-                )
+                
+                if b'encoding' in content.lower():
+                    original_content = content
+                    
+                    # Sostituiamo TUTTE le varianti possibili di encoding="..." con encoding="UTF-8"
+                    # Gestisce: encoding="none", encoding='none', encoding = none, ecc.
+                    content = re.sub(
+                        rb'encoding\s*=\s*["\'][^"\']*["\']', 
+                        b'encoding="UTF-8"', 
+                        content, 
+                        flags=re.IGNORECASE
+                    )
+                    # Gestisce varianti senza virgolette (es. encoding=none)
+                    content = re.sub(
+                        rb'encoding\s*=\s*[^"\'>\s]+', 
+                        b'encoding="UTF-8"', 
+                        content, 
+                        flags=re.IGNORECASE
+                    )
+                    
+                    if content != original_content:
+                        has_fixed = True
+                        
                 zf.writestr(item, content)
+                
+        if has_fixed:
+            logger.info("Fix encoding applicato con successo ai file XML interni.")
+            
         return fixed_data.getvalue()
+        
     except zipfile.BadZipFile:
-        # If it's not a zip (e.g., old .xls or HTML), do a best-effort removal on the raw bytes.
-        return re.sub(
-            rb'encoding\s*=\s*["\']?[^"\'\s>]*["\']?\s*',
-            b'',
-            file_data,
-            flags=re.IGNORECASE
-        )
+        logger.warning("Il file non è uno zip valido in fix_excel_encoding, provo fix raw sui bytes.")
+        content = file_data
+        content = re.sub(rb'encoding\s*=\s*["\'][^"\']*["\']', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
+        content = re.sub(rb'encoding\s*=\s*[^"\'>\s]+', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
+        return content
+        
     except Exception as e:
-        logger.error(f"Errore in fix_excel_encoding: {str(e)}")
+        logger.error(f"Errore imprevisto in fix_excel_encoding: {str(e)}")
         return file_data
+
 def get_all_repo_files(repo, path=""):
     """Scansiona tutto il repo per trovare i file excel in qualsiasi sottocartella."""
     contents = repo.get_contents(path)
@@ -286,7 +307,7 @@ def genera_pdf():
                     if len(file_data) > 10 * 1024 * 1024: 
                         continue
                         
-                    # FIX ENCODING AGGRESSIVO
+                    # FIX ENCODING INFALLIBILE
                     fixed_data = fix_excel_encoding(file_data)
                         
                     excel_io = io.BytesIO(fixed_data)
