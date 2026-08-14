@@ -37,7 +37,6 @@ def add_security_headers(response):
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO_NAME = os.environ.get("REPO_NAME", "tonecraft17/dati-privati-pdf")
-FOLDER_NAME = "Risultato_Estrazione_I_Fascia"
 
 g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
 if not g:
@@ -120,6 +119,17 @@ def sanitize_for_fpdf(text):
 def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
+def get_all_repo_files(repo, path=""):
+    """Funzione ricorsiva per scansionare tutto il repo e trovare i file excel in qualsiasi sottocartella."""
+    contents = repo.get_contents(path)
+    files = []
+    for content in contents:
+        if content.type == "dir":
+            files.extend(get_all_repo_files(repo, content.path))
+        else:
+            files.append(content)
+    return files
+
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
     if request.method == 'OPTIONS':
@@ -183,25 +193,12 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     stats_data = {} 
-    all_dfs = []
     
     try:
         repo = g.get_repo(REPO_NAME)
-        all_files = []
-        # Prova a fetchare dalla cartella specifica
-        try:
-            folder_files = repo.get_contents(FOLDER_NAME)
-            all_files.extend(folder_files)
-            logger.info(f"Trovati {len(folder_files)} file nella cartella '{FOLDER_NAME}'.")
-        except Exception as e:
-            logger.warning(f"Cartella '{FOLDER_NAME}' non trovata o inaccessibile: {str(e)}")
-        
-        # Aggiungi anche i file nella root per sicurezza
-        root_files_repo = repo.get_contents("")
-        all_files.extend(root_files_repo)
-        logger.info(f"Trovati {len(root_files_repo)} file nella root.")
-        
-        root_files = all_files
+        # Scansiona ricorsivamente TUTTO il repository per trovare i file Excel
+        root_files = get_all_repo_files(repo)
+        logger.info(f"Trovati {len(root_files)} file totali nel repository.")
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
@@ -223,7 +220,6 @@ def genera_pdf():
         nomi_file_visti = set()
         
         for f in root_files:
-            # Salta se non è un file (es. cartelle)
             if hasattr(f, 'type') and f.type != 'file':
                 continue
                 
@@ -241,6 +237,7 @@ def genera_pdf():
                     nomi_file_visti.add(f.name)
 
         if not file_da_elaborare:
+            logger.warning(f"Nessun file trovato per il codice: {codice}")
             continue
 
         pdf.set_font("Arial", 'B', 12)
