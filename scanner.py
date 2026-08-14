@@ -36,7 +36,6 @@ def add_security_headers(response):
     return response
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-# Aggiornato per puntare al tuo nuovo repository GitHub
 REPO_NAME = os.environ.get("REPO_NAME", "tonecraft17/dati-privati-pdf")
 FOLDER_NAME = "Risultato_Estrazione_I_Fascia"
 
@@ -88,7 +87,6 @@ PROVINCE_DATA = {
 }
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
 
-# Dizionario delle scuole per il calcolo del grafico
 SCUOLE_MUSICALI = {
     "Agrigento": 54, "Alessandria": 9, "Ancona": 18, "Aosta": 0, "Arezzo": 13,
     "Ascoli Piceno": 10, "Asti": 4, "Avellino": 65, "Bari": 44, "Barletta-Andria-Trani": 10,
@@ -189,11 +187,21 @@ def genera_pdf():
     
     try:
         repo = g.get_repo(REPO_NAME)
-        # Pescaggio file dalla nuova directory "Risultato_Estrazione_I_Fascia"
+        all_files = []
+        # Prova a fetchare dalla cartella specifica
         try:
-            root_files = repo.get_contents(FOLDER_NAME)
-        except UnknownObjectException:
-            return jsonify({"error": f"Cartella '{FOLDER_NAME}' non trovata nel repository."}), 404
+            folder_files = repo.get_contents(FOLDER_NAME)
+            all_files.extend(folder_files)
+            logger.info(f"Trovati {len(folder_files)} file nella cartella '{FOLDER_NAME}'.")
+        except Exception as e:
+            logger.warning(f"Cartella '{FOLDER_NAME}' non trovata o inaccessibile: {str(e)}")
+        
+        # Aggiungi anche i file nella root per sicurezza
+        root_files_repo = repo.get_contents("")
+        all_files.extend(root_files_repo)
+        logger.info(f"Trovati {len(root_files_repo)} file nella root.")
+        
+        root_files = all_files
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
@@ -215,13 +223,17 @@ def genera_pdf():
         nomi_file_visti = set()
         
         for f in root_files:
+            # Salta se non è un file (es. cartelle)
+            if hasattr(f, 'type') and f.type != 'file':
+                continue
+                
             nome_file_norm = normalize_string(f.name)
-            if codice_norm in nome_file_norm and nome_file_norm.endswith(".XLSX"):
+            if codice_norm in nome_file_norm and (nome_file_norm.endswith(".XLSX") or nome_file_norm.endswith(".XLS")):
                 if f.name in nomi_file_visti:
                     continue
                 parte_dopo = nome_file_norm.rsplit(codice_norm, 1)[-1]
                 if fascia_norm:
-                    if parte_dopo == fascia_norm + ".XLSX":
+                    if parte_dopo == fascia_norm + ".XLSX" or parte_dopo == fascia_norm + ".XLS":
                         file_da_elaborare.append(f)
                         nomi_file_visti.add(f.name)
                 else:
@@ -248,7 +260,7 @@ def genera_pdf():
                     excel_io = io.BytesIO(file_data)
                     df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     
-                    fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").strip().upper()
+                    fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").replace(".xls", "").strip().upper()
                     if not fascia_nome:
                         fascia_nome = "DETTAGLI"
                         
@@ -259,13 +271,12 @@ def genera_pdf():
             if not lista_dati:
                 continue
 
-            # Ordina i dati per fascia (I Fascia prima della II Fascia)
             def get_fascia_order(fascia_str):
                 f = str(fascia_str).upper()
                 if 'I FASCIA' in f or '1 FASCIA' in f: return 0
                 if 'II FASCIA' in f or '2 FASCIA' in f: return 1
                 if 'III FASCIA' in f or '3 FASCIA' in f: return 2
-                return 3
+                return  3
             
             lista_dati.sort(key=lambda x: get_fascia_order(x[1]))
 
@@ -463,7 +474,6 @@ def genera_pdf():
                 row_height = 7
                 
                 for _, row in df.iterrows():
-                    # Variabili per tracciare se la provincia/regione è cambiata in questa iterazione
                     prov_changed = False
                     reg_changed = False
                     
@@ -477,27 +487,22 @@ def genera_pdf():
                                 reg_changed = True
                                 current_region = region_name
 
-                    # Se la provincia è cambiata, stampiamo la sua intestazione
                     if prov_changed:
-                        # Calcola lo spazio necessario
-                        spazio_necessario = 20  # Spazio base per provincia e margini
+                        spazio_necessario = 20 
                         if reg_changed:
-                            spazio_necessario += 10  # Spazio extra per la regione
+                            spazio_necessario += 10  
 
-                        # Verifica se c'è spazio per l'intestazione E almeno una riga di dati
                         if pdf.get_y() + spazio_necessario + row_height > 190:
                             pdf.add_page()
                             draw_table_header(add_spacer=True)
                             pdf.set_font("Arial", size=9)
                         else:
-                            pdf.ln(4) # Aggiungi spazio solo se non cambiamo pagina
+                            pdf.ln(4) 
                         
-                        # Stampa la regione SOLO se è cambiata
                         if reg_changed and region_name:
                             pdf.set_font("Arial", 'B', 12)
                             pdf.cell(0, 7, txt=sanitize_for_fpdf(region_name.upper()), ln=True, align='L')
                         
-                        # Stampa SEMPRE il nome della provincia se è cambiata
                         if prov_full_name:
                             pdf.set_font("Arial", 'B', 10)
                             pdf.cell(0, 6, txt=sanitize_for_fpdf(prov_full_name.upper()), ln=True, align='L')
@@ -505,7 +510,6 @@ def genera_pdf():
                             
                         pdf.set_font("Arial", size=9)
 
-                    # Controllo standard per nuova pagina prima di stampare la riga dati
                     if pdf.get_y() + row_height > 190:
                         pdf.add_page()
                         draw_table_header(add_spacer=True)
@@ -564,25 +568,21 @@ def genera_bollettino():
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
 
-    # Mappa le province se l'utente ha selezionato solo le regioni
     if regioni_richieste and not province_nomi:
         for sigla, (region, nome) in PROVINCE_DATA.items():
             if region in regioni_richieste and nome not in province_nomi:
                 province_nomi.append(nome)
 
-    # Normalizza i filtri per il confronto
     prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
     reg_set = {r.upper() for r in regioni_richieste}
     
-    # Converti 'I_Fascia' in 'F1' e 'II_Fascia' in 'F2'
     if fascia_richiesta.upper() == 'II_FASCIA':
         fascia_filter = 'F2'
     elif fascia_richiesta.upper() == 'I_FASCIA':
         fascia_filter = 'F1'
     else:
-        fascia_filter = '' # Entrambe
+        fascia_filter = ''
 
-    # Codici classe richiesti (es. ["AM56"])
     codici_validi = [c.split(' - ')[0].strip().upper() for c in classi_selezionate]
 
     try:
@@ -597,7 +597,6 @@ def genera_bollettino():
     except Exception as e:
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
-    # Pulizia colonne
     df.columns = [str(c).strip() for c in df.columns]
     
     results = {}
@@ -621,7 +620,6 @@ def genera_bollettino():
             if fascia_raw not in ('F1', 'F2'):
                 continue
                 
-            # Se l'utente ha filtrato per fascia, escludi l'altra
             if fascia_filter and fascia_raw != fascia_filter:
                 continue
 
@@ -639,7 +637,6 @@ def genera_bollettino():
             except (ValueError, TypeError):
                 continue
 
-            # Inizializza provincia se non presente
             if current_prov not in results:
                 results[current_prov] = {
                     "regione": current_region,
@@ -653,7 +650,6 @@ def genera_bollettino():
             prov_data = results[current_prov]
             prov_data["nomine_totali"] += 1
             
-            # Aggiorna i minimi per fascia (che corrispondono all'ultimo nominato in ordine di chiamata)
             if fascia_raw == "F1":
                 prov_data["nomine_f1"] += 1
                 if prov_data["min_f1"] is None or punt < prov_data["min_f1"]:
@@ -681,7 +677,6 @@ def genera_bollettino():
                     matched_prov = True
                     break
 
-    # Formatta l'output per il frontend
     out_data = []
     for prov, r in results.items():
         assorb_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
