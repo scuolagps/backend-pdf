@@ -247,35 +247,34 @@ def genera_pdf():
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_upper = codice.upper()
         
+        # Prefisso ESATTO per evitare di pescare A023 quando si cerca A028
+        expected_prefix = f"RISULTATO_ESTRAZIONE_{codice_upper}_"
+        
         file_da_elaborare = []
         nomi_file_visti = set()
         
         for f in root_files:
             if hasattr(f, 'type') and f.type != 'file':
                 continue
-                
             if f.name.startswith('~$'):
                 continue
                 
-            # MATCH ESATTO SPLITTANDO IL NOME FILE: "Risultato_Estrazione_A040_I_Fascia.xlsx"
-            # parts sarà ["Risultato", "Estrazione", "A040", "I", "Fascia.xlsx"]
-            parts = f.name.split('_')
-            if len(parts) >= 4 and parts[0] == 'Risultato' and parts[1] == 'Estrazione':
-                file_codice = parts[2]
-                if file_codice.upper() == codice_upper:
-                    # Il codice corrisponde ESATTAMENTE
-                    if f.name in nomi_file_visti:
-                        continue
-                        
-                    if fascia_norm:
-                        # Ricostruisco la parte della fascia dal nome file
-                        file_fascia_norm = normalize_string("_".join(parts[3:]).replace('.xlsx', '').replace('.xls', ''))
-                        if file_fascia_norm == fascia_norm:
-                            file_da_elaborare.append(f)
-                            nomi_file_visti.add(f.name)
-                    else:
+            # MATCH ESATTO SUL PREFISSO DEL NOME FILE
+            if f.name.upper().startswith(expected_prefix) and (f.name.lower().endswith('.xlsx') or f.name.lower().endswith('.xls')):
+                if f.name in nomi_file_visti:
+                    continue
+                    
+                if fascia_norm:
+                    # Estrai la parte della fascia dal nome file
+                    # Es: RISULTATO_ESTRAZIONE_A028_I_FASCIA.XLSX -> I_FASCIA
+                    file_fascia_part = f.name.upper()[len(expected_prefix):].replace('.XLSX', '').replace('.XLS', '')
+                    file_fascia_norm = normalize_string(file_fascia_part)
+                    if file_fascia_norm == fascia_norm:
                         file_da_elaborare.append(f)
                         nomi_file_visti.add(f.name)
+                else:
+                    file_da_elaborare.append(f)
+                    nomi_file_visti.add(f.name)
 
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
@@ -333,14 +332,11 @@ def genera_pdf():
                 }, inplace=True, errors='ignore')
 
                 # --- FILTRO RIGOROSO SULLE RIGHE ---
-                # Trova la colonna che contiene il codice classe
+                # Cerca la colonna ESATTA del codice classe
                 col_classe = None
                 for col in df.columns:
-                    col_upper = str(col).upper()
-                    if 'CODICE' in col_upper and 'GRADUATORIA' in col_upper:
-                        col_classe = col
-                        break
-                    if 'CLASSE' in col_upper and 'CONCORSO' in col_upper:
+                    col_upper = str(col).upper().strip()
+                    if col_upper in ['CODICE GRADUATORIA', 'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'CLASSE DI CONCORSO']:
                         col_classe = col
                         break
                 
