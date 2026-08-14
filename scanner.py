@@ -130,6 +130,28 @@ def get_all_repo_files(repo, path=""):
             files.append(content)
     return files
 
+def read_excel_with_auto_sheet(file_bytes):
+    """
+    Legge un file Excel e restituisce il primo DataFrame che contiene
+    le colonne tipiche delle graduatorie (UFFICIO PROVINCIALE o COGNOME).
+    Se nessun foglio è valido, restituisce il primo foglio.
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    xls = pd.ExcelFile(BytesIO(file_bytes))
+    for sheet_name in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=sheet_name, engine='openpyxl')
+        # Controlla se il DataFrame contiene colonne rilevanti
+        cols = [str(c).upper() for c in df.columns]
+        if any('UFFICIO' in c or 'PROVINCIA' in c for c in cols) and \
+           any('COGNOME' in c for c in cols):
+            logger.info(f"Foglio selezionato: '{sheet_name}' con {len(df)} righe")
+            return df
+    # Se nessun foglio è valido, restituisci il primo
+    logger.warning("Nessun foglio con le colonne attese, restituisco il primo foglio")
+    return pd.read_excel(BytesIO(file_bytes), engine='openpyxl')
+
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
     if request.method == 'OPTIONS':
@@ -254,8 +276,11 @@ def genera_pdf():
                     if len(file_data) > 10 * 1024 * 1024: 
                         continue
                         
-                    excel_io = io.BytesIO(file_data)
-                    df_temp = pd.read_excel(excel_io, engine='openpyxl')
+                    # Leggi il foglio giusto automaticamente
+                    df_temp = read_excel_with_auto_sheet(file_data)
+                    if df_temp.empty:
+                        logger.warning(f"File {file_trovato.name} letto ma DataFrame vuoto")
+                        continue
                     
                     fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").replace(".xls", "").strip().upper()
                     if not fascia_nome:
@@ -303,6 +328,7 @@ def genera_pdf():
                     df = df.dropna(subset=[col_cognome])
 
                 if df.empty:
+                    logger.info(f"Nessun dato per la provincia selezionata nel file {nome_fascia}")
                     continue
 
                 useless_cols = [
