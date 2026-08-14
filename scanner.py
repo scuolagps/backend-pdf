@@ -36,7 +36,9 @@ def add_security_headers(response):
     return response
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("REPO_NAME", "TuoUsernameGithub/dati-privati-pdf")
+# Aggiornato per puntare al tuo nuovo repository GitHub
+REPO_NAME = os.environ.get("REPO_NAME", "tonecraft17/dati-privati-pdf")
+FOLDER_NAME = "Risultato_Estrazione_I_Fascia"
 
 g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
 if not g:
@@ -187,7 +189,11 @@ def genera_pdf():
     
     try:
         repo = g.get_repo(REPO_NAME)
-        root_files = repo.get_contents("")
+        # Pescaggio file dalla nuova directory "Risultato_Estrazione_I_Fascia"
+        try:
+            root_files = repo.get_contents(FOLDER_NAME)
+        except UnknownObjectException:
+            return jsonify({"error": f"Cartella '{FOLDER_NAME}' non trovata nel repository."}), 404
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
@@ -696,6 +702,7 @@ def genera_bollettino():
         })
 
     return jsonify({"data": out_data})
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
