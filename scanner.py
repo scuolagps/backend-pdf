@@ -265,8 +265,6 @@ def genera_pdf():
                     continue
                     
                 if fascia_norm:
-                    # Estrai la parte della fascia dal nome file
-                    # Es: RISULTATO_ESTRAZIONE_A028_I_FASCIA.XLSX -> I_FASCIA
                     file_fascia_part = f.name.upper()[len(expected_prefix):].replace('.XLSX', '').replace('.XLS', '')
                     file_fascia_norm = normalize_string(file_fascia_part)
                     if file_fascia_norm == fascia_norm:
@@ -331,30 +329,82 @@ def genera_pdf():
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
                 }, inplace=True, errors='ignore')
 
-                # --- FILTRO RIGOROSO SULLE RIGHE ---
-                # Cerca la colonna ESATTA del codice classe
+                # ============================================================
+                # FILTRO RIGOROSO: MANTIENI SOLO LA CLASSE SELEZIONATA
+                # ============================================================
                 col_classe = None
                 for col in df.columns:
-                    col_upper = str(col).upper().strip()
-                    if col_upper in ['CODICE GRADUATORIA', 'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'CLASSE DI CONCORSO']:
+                    col_upper = str(col).strip().upper()
+                    if col_upper in {
+                        'CODICE GRADUATORIA',
+                        'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE',
+                        'CLASSE DI CONCORSO'
+                    }:
                         col_classe = col
                         break
-                
+
                 if col_classe and not df.empty:
-                    # Regex per trovare tutti i codici classe italiani all'interno della stringa
-                    class_regex = re.compile(r'\b(A0\d{2}|A[A-Z]\d{2}|A[A-Z]\d{1}[A-Z]|ADMM)\b', re.IGNORECASE)
+                    # --------------------------------------------------------
+                    # Normalizzazione del valore della classe
+                    # --------------------------------------------------------
+                    def contiene_classe_esatta(valore, classe_target):
+                        if pd.isna(valore):
+                            return False
+                        testo = str(valore).upper().strip()
+                        # Uniforma separatori
+                        testo = testo.replace('-', ' ')
+                        testo = testo.replace('_', ' ')
+                        testo = re.sub(r'\s+', ' ', testo)
+                        # Cerca codici classe italiani
+                        codici = re.findall(
+                            r'(?<![A-Z0-9])'
+                            r'(?:A\d{3}|A[A-Z]\d{2}|ADMM|ADSS|ADEE|ADAA)'
+                            r'(?![A-Z0-9])',
+                            testo
+                        )
+                        codici = {c.upper() for c in codici}
+                        return classe_target.upper() in codici
+
+                    prima = len(df)
                     
-                    def is_other_class(val):
-                        if pd.isna(val): return False
-                        val_str = str(val).upper()
-                        matches = class_regex.findall(val_str)
-                        # Se trova dei codici e NESSUNO è quello selezionato, è un'altra classe
-                        if matches:
-                            return not any(m.upper() == codice_upper for m in matches)
-                        return False
-                    
-                    # Manteniamo solo le righe che NON appartengono ad altre classi
-                    df = df[~df[col_classe].apply(is_other_class)]
+                    # --------------------------------------------------------
+                    # WHITELIST: per A028 devono rimanere SOLO righe A028
+                    # --------------------------------------------------------
+                    df = df[
+                        df[col_classe].apply(
+                            lambda x: contiene_classe_esatta(x, codice_upper)
+                        )
+                    ].copy()
+
+                    dopo = len(df)
+
+                    logger.info(
+                        f"[{codice_upper}] FILTRO CLASSE: "
+                        f"{prima} righe prima -> {dopo} righe dopo"
+                    )
+
+                    # DEBUG AGGIUNTIVO
+                    if not df.empty:
+                        classi_presenti = (
+                            df[col_classe]
+                            .astype(str)
+                            .str.upper()
+                            .drop_duplicates()
+                            .tolist()
+                        )
+                        logger.info(
+                            f"[{codice_upper}] Classi effettivamente presenti dopo filtro: "
+                            f"{classi_presenti[:20]}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[{codice_upper}] Nessuna riga rimasta dopo il filtro classe."
+                        )
+                else:
+                    logger.warning(
+                        f"[{codice_upper}] Colonna classe non trovata nel file. "
+                        f"Viene utilizzato esclusivamente il filtro sul nome file."
+                    )
 
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
