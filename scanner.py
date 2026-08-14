@@ -121,67 +121,34 @@ def normalize_string(s):
 
 def fix_excel_encoding(file_data):
     """
-    Ripara file XLSX contenenti dichiarazioni XML con encoding non valido,
-    ad esempio encoding="none".
-    La correzione viene applicata SOLO ai file XML interni allo ZIP XLSX.
+    Safety net: rimuove qualsiasi attributo encoding="..." dai file XML interni
+    per prevenire errori openpyxl con vecchi file corrotti.
     """
     try:
-        input_zip = zipfile.ZipFile(io.BytesIO(file_data), 'r')
+        z = zipfile.ZipFile(io.BytesIO(file_data))
+        fixed_data = io.BytesIO()
+        has_fixed = False
+        
+        with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for item in z.infolist():
+                content = z.read(item.filename)
+                if b'encoding' in content.lower():
+                    original_content = content
+                    content = re.sub(rb'encoding\s*=\s*["\'][^"\']*["\']', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
+                    content = re.sub(rb'encoding\s*=\s*[^"\'>\s]+', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
+                    if content != original_content:
+                        has_fixed = True
+                zf.writestr(item, content)
+                
+        if has_fixed:
+            logger.info("Fix encoding applicato a vecchio file corrotto.")
+            
+        return fixed_data.getvalue()
+        
     except zipfile.BadZipFile:
-        logger.error("Il file ricevuto non è un XLSX valido (ZIP). Impossibile applicare la riparazione XML.")
         return file_data
-
-    output_io = io.BytesIO()
-    modifiche = []
-
-    try:
-        with zipfile.ZipFile(output_io, 'w', compression=zipfile.ZIP_DEFLATED) as output_zip:
-            for item in input_zip.infolist():
-                try:
-                    content = input_zip.read(item.filename)
-                except Exception as e:
-                    logger.warning(f"Impossibile leggere {item.filename}: {e}")
-                    continue
-
-                if item.filename.lower().endswith('.xml'):
-                    xml_decl_pattern = rb'^\s*<\?xml\b[^>]*\?>'
-                    match = re.search(xml_decl_pattern, content, flags=re.IGNORECASE)
-
-                    if match:
-                        declaration = match.group(0)
-
-                        if re.search(rb'encoding\s*=\s*["\']?\s*none\s*["\']?', declaration, flags=re.IGNORECASE):
-                            new_declaration = b'<?xml version="1.0" encoding="UTF-8"?>'
-                            content = content[:match.start()] + new_declaration + content[match.end():]
-                            modifiche.append(item.filename)
-                            logger.warning(f"ENCODING INVALIDO RIPARATO: {item.filename}")
-                        else:
-                            enc_match = re.search(rb'encoding\s*=\s*["\']([^"\']+)["\']', declaration, flags=re.IGNORECASE)
-                            if enc_match:
-                                encoding_value = enc_match.group(1).decode('ascii', errors='ignore').strip().lower()
-                                encoding_validi = {'utf-8', 'utf8', 'utf-16', 'utf-16le', 'utf-16be'}
-
-                                if encoding_value not in encoding_validi:
-                                    logger.warning(f"ENCODING XML NON STANDARD: {item.filename} -> {encoding_value!r}")
-                                    new_declaration = b'<?xml version="1.0" encoding="UTF-8"?>'
-                                    content = content[:match.start()] + new_declaration + content[match.end():]
-                                    modifiche.append(item.filename)
-
-                    content = re.sub(rb'encoding\s*=\s*["\']?\s*none\s*["\']?', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
-
-                output_zip.writestr(item, content)
-
-        output_data = output_io.getvalue()
-
-        if modifiche:
-            logger.info(f"Riparazione encoding completata. File XML modificati: {modifiche}")
-        else:
-            logger.info("Nessuna dichiarazione encoding=none trovata nei file XML del workbook.")
-
-        return output_data
-
     except Exception as e:
-        logger.error(f"Errore durante la riparazione del XLSX: {e}", exc_info=True)
+        logger.error(f"Errore in fix_excel_encoding: {str(e)}")
         return file_data
 
 def get_all_repo_files(repo, path=""):
@@ -318,20 +285,14 @@ def genera_pdf():
                     if len(file_data) > 10 * 1024 * 1024: 
                         continue
                         
-                    # FIX ENCODING INFALLIBILE
                     fixed_data = fix_excel_encoding(file_data)
 
                     try:
                         excel_io = io.BytesIO(fixed_data)
                         df_temp = pd.read_excel(excel_io, engine='openpyxl')
                     except Exception as e:
-                        logger.error(f"ERRORE OPENPYXL dopo fix encoding per {file_trovato.name}: {e}", exc_info=True)
-                        try:
-                            excel_io.seek(0)
-                            df_temp = pd.read_excel(io.BytesIO(fixed_data), engine='openpyxl')
-                        except Exception as e2:
-                            logger.error(f"SECONDO TENTATIVO FALLITO per {file_trovato.name}: {e2}", exc_info=True)
-                            continue
+                        logger.error(f"ERRORE OPENPYXL per {file_trovato.name}: {e}", exc_info=True)
+                        continue
                     
                     fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").replace(".xls", "").strip().upper()
                     if not fascia_nome:
