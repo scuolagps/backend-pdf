@@ -538,8 +538,13 @@ def genera_pdf():
             lista_dati = []
             for file_trovato in file_da_elaborare:
                 try:
-                    file_content = repo.get_contents(file_trovato.path)
-                    file_data = file_content.decoded_content
+                    # Use download_url for reliability (fix: unsupported encoding: none)
+                    if hasattr(file_trovato, 'download_url') and file_trovato.download_url:
+                        response = requests.get(file_trovato.download_url)
+                        file_data = response.content
+                    else:
+                        file_content = repo.get_contents(file_trovato.path)
+                        file_data = file_content.decoded_content
                     
                     csv_text = file_data.decode('utf-8-sig', errors='ignore')
                     csv_text = clean_csv_text(csv_text)
@@ -910,7 +915,12 @@ def genera_bollettino():
         if not file_obj:
             return jsonify({"error": "File Risultato_Estrazione_Bollettini.csv non trovato nel repository."}), 404
         
-        file_data = file_obj.decoded_content
+        # Use download_url for reliability (fix: unsupported encoding: none)
+        if hasattr(file_obj, 'download_url') and file_obj.download_url:
+            response = requests.get(file_obj.download_url)
+            file_data = response.content
+        else:
+            file_data = file_obj.decoded_content
         csv_text = file_data.decode('utf-8-sig', errors='ignore')
         csv_text = clean_csv_text(csv_text)
         df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
