@@ -90,8 +90,13 @@ SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
 SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A076", "A077", "AM56", "A002", "A003", "A005", "A007", "A008", "A009", "A010", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55"}
 
-_SCUOLE_DICT_CACHE = None
-SCUOLE_TXT_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
+# Nuovo set specifico per le classi musicali lette dal file dedicato
+SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
+
+_SCUOLE_REGOLARE_CACHE = None
+_SCUOLE_MUSICALI_CACHE = None
+SCUOLE_REGOLARI_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
+SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -123,18 +128,30 @@ def clean_csv_text(raw_text):
     text = re.sub(r'^\d+\s*\|\s*', '', text, flags=re.MULTILINE)
     return text
 
-def get_dynamic_scuole_dict(repo):
+def get_scuole_dict(repo, is_musical=False):
     """
-    Usa l'oggetto repo autenticato di GitHub per leggere il file TXT.
-    In questo modo supera il problema 404 delle repository private.
+    Legge il file TXT delle scuole tramite API GitHub autenticata.
+    Se is_musical è True, legge il file Riepilogo_Scuole_Musicali.txt.
+    Altrimenti legge Scuole_Statali_Totali_MM.txt.
     """
-    global _SCUOLE_DICT_CACHE
-    if _SCUOLE_DICT_CACHE is not None:
-        return _SCUOLE_DICT_CACHE
+    global _SCUOLE_REGOLARE_CACHE, _SCUOLE_MUSICALI_CACHE
+    
+    if is_musical:
+        if _SCUOLE_MUSICALI_CACHE is not None:
+            return _SCUOLE_MUSICALI_CACHE
+        file_path = SCUOLE_MUSICALI_PATH
+        cache_ref = _SCUOLE_MUSICALI_CACHE
+        tipo = "Musicali"
+    else:
+        if _SCUOLE_REGOLARE_CACHE is not None:
+            return _SCUOLE_REGOLARE_CACHE
+        file_path = SCUOLE_REGOLARI_PATH
+        cache_ref = _SCUOLE_REGOLARE_CACHE
+        tipo = "Regolari"
         
     try:
-        logger.info("Lettura file scuole dinamiche tramite API GitHub...")
-        file_content = repo.get_contents(SCUOLE_TXT_PATH)
+        logger.info(f"Lettura file scuole ({tipo}) tramite API GitHub...")
+        file_content = repo.get_contents(file_path)
         text = file_content.decoded_content.decode('utf-8', errors='ignore')
         
         scuole_dict = {}
@@ -163,17 +180,22 @@ def get_dynamic_scuole_dict(repo):
                     scuole_dict[actual_name] = int(num_str)
                     
         if not scuole_dict:
-            logger.warning("Nessun dato trovato nel file .txt delle scuole. Uso fallback a 0.")
-            _SCUOLE_DICT_CACHE = SCUOLE_FALLBACK
+            logger.warning(f"Nessun dato trovato nel file .txt delle scuole ({tipo}). Uso fallback a 0.")
+            result_dict = SCUOLE_FALLBACK
         else:
-            logger.info(f"Dizionario scuole dinamico caricato: {len(scuole_dict)} province trovate.")
-            _SCUOLE_DICT_CACHE = scuole_dict
+            logger.info(f"Dizionario scuole {tipo} caricato: {len(scuole_dict)} province trovate.")
+            result_dict = scuole_dict
             
-        return _SCUOLE_DICT_CACHE
+        if is_musical:
+            _SCUOLE_MUSICALI_CACHE = result_dict
+            return _SCUOLE_MUSICALI_CACHE
+        else:
+            _SCUOLE_REGOLARE_CACHE = result_dict
+            return _SCUOLE_REGOLARE_CACHE
+            
     except Exception as e:
-        logger.error(f"Errore critico nel caricamento del file scuole dinamiche: {e}")
-        _SCUOLE_DICT_CACHE = SCUOLE_FALLBACK
-        return _SCUOLE_DICT_CACHE
+        logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}")
+        return SCUOLE_FALLBACK
 
 def get_all_repo_files(repo, path=""):
     contents = repo.get_contents(path)
@@ -252,7 +274,6 @@ def genera_pdf():
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
         logger.info(f"Trovati {len(root_files)} file totali nel repository.")
-        dizionario_scuole_sec_I = get_dynamic_scuole_dict(repo)
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
@@ -272,8 +293,11 @@ def genera_pdf():
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         
-        if codice_upper in SEC_I_CLASSI:
-            scuole_dict = dizionario_scuole_sec_I
+        # Logica di selezione del file delle scuole corretto
+        if codice_upper in SEC_I_MUSICAL_CLASSI:
+            scuole_dict = get_scuole_dict(repo, is_musical=True)
+        elif codice_upper in SEC_I_CLASSI:
+            scuole_dict = get_scuole_dict(repo, is_musical=False)
         else:
             scuole_dict = dizionario_scuole_altro
             
