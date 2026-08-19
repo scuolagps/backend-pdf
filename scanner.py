@@ -206,22 +206,36 @@ SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
 NOME_TO_SIGLA = {}
 for sigla, (region, nome) in PROVINCE_DATA.items():
     norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
+    # Rimuovi accenti dalle chiavi
+    norm = norm.replace('À', 'A').replace('È', 'E').replace('Ì', 'I').replace('Ò', 'O').replace('Ù', 'U')
     NOME_TO_SIGLA[norm] = sigla
 
 def to_sigla(val):
+    """Converte un nome provincia o sigla nella sigla standard a 2 lettere."""
     if pd.isna(val):
         return None
     v = str(val).strip().upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
+    # Rimuovi accenti (es. FORLÌ -> FORLI)
+    v = v.replace('À', 'A').replace('Á', 'A').replace('È', 'E').replace('É', 'E')
+    v = v.replace('Ì', 'I').replace('Í', 'I').replace('Ò', 'O').replace('Ó', 'O')
+    v = v.replace('Ù', 'U').replace('Ú', 'U').replace('Ü', 'U')
+    # Controlla sigle alternative vecchie
     if v in SIGLE_ALT:
         return SIGLE_ALT[v]
+    # Match diretto sigla (es. "RM")
     if v in PROVINCE_DATA:
         return v
+    # Match diretto nome (es. "ROMA")
     if v in NOME_TO_SIGLA:
         return NOME_TO_SIGLA[v]
+    # Match parziale: usa il nome piu lungo trovato (es. "RAVENNA" batte "ENNA")
+    best_match = None
+    best_len = 0
     for nome, sigla in NOME_TO_SIGLA.items():
-        if nome in v:
-            return sigla
-    return None
+        if nome in v and len(nome) > best_len:
+            best_match = sigla
+            best_len = len(nome)
+    return best_match
 # ========================================================================
 
 def sanitize_for_fpdf(text):
