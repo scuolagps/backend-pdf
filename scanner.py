@@ -88,13 +88,10 @@ PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items(
 
 SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
-SEC_I_CLASSI = {
-    "AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A076", "A077", "AM56",
-    "A002", "A003", "A005", "A007", "A008", "A009", "A010", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55"
-}
+SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A076", "A077", "AM56", "A002", "A003", "A005", "A007", "A008", "A009", "A010", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55"}
 
 _SCUOLE_DICT_CACHE = None
-SCUOLE_TXT_URL = "https://raw.githubusercontent.com/scuolagps/dati-privati-pdf/main/Numero%20scuole%20I%20grado/Scuole_Statali_Totali_MM.txt"
+SCUOLE_TXT_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -126,16 +123,19 @@ def clean_csv_text(raw_text):
     text = re.sub(r'^\d+\s*\|\s*', '', text, flags=re.MULTILINE)
     return text
 
-def get_dynamic_scuole_dict():
+def get_dynamic_scuole_dict(repo):
+    """
+    Usa l'oggetto repo autenticato di GitHub per leggere il file TXT.
+    In questo modo supera il problema 404 delle repository private.
+    """
     global _SCUOLE_DICT_CACHE
     if _SCUOLE_DICT_CACHE is not None:
         return _SCUOLE_DICT_CACHE
         
     try:
-        logger.info("Scaricamento file scuole dinamiche da GitHub...")
-        resp = requests.get(SCUOLE_TXT_URL, timeout=15)
-        resp.raise_for_status()
-        text = resp.text
+        logger.info("Lettura file scuole dinamiche tramite API GitHub...")
+        file_content = repo.get_contents(SCUOLE_TXT_PATH)
+        text = file_content.decoded_content.decode('utf-8', errors='ignore')
         
         scuole_dict = {}
         norm_to_name = {}
@@ -248,16 +248,16 @@ def genera_pdf():
     trovato_almeno_uno = False
     stats_data = {} 
     
-    dizionario_scuole_sec_I = get_dynamic_scuole_dict()
-    dizionario_scuole_altro = SCUOLE_FALLBACK
-    
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
         logger.info(f"Trovati {len(root_files)} file totali nel repository.")
+        dizionario_scuole_sec_I = get_dynamic_scuole_dict(repo)
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
+    dizionario_scuole_altro = SCUOLE_FALLBACK
+    
     NOME_TO_SIGLA = {nome.upper().replace(" ", "").replace("'", ""): sigla for sigla, (region, nome) in PROVINCE_DATA.items()}
 
     def to_sigla(val):
@@ -360,11 +360,7 @@ def genera_pdf():
                 col_classe = None
                 for col in df.columns:
                     col_upper = str(col).strip().upper()
-                    if col_upper in {
-                        'CODICE GRADUATORIA',
-                        'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE',
-                        'CLASSE DI CONCORSO'
-                    }:
+                    if col_upper in {'CODICE GRADUATORIA', 'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'CLASSE DI CONCORSO'}:
                         col_classe = col
                         break
 
@@ -372,25 +368,14 @@ def genera_pdf():
                     def contiene_classe_esatta(valore, classe_target):
                         if pd.isna(valore):
                             return False
-                        testo = str(valore).upper().strip()
-                        testo = testo.replace('-', ' ')
-                        testo = testo.replace('_', ' ')
+                        testo = str(valore).upper().strip().replace('-', ' ').replace('_', ' ')
                         testo = re.sub(r'\s+', ' ', testo)
-                        codici = re.findall(
-                            r'(?<![A-Z0-9])'
-                            r'(?:A\d{3}|A[A-Z]\d{2}|ADMM|ADSS|ADEE|ADAA)'
-                            r'(?![A-Z0-9])',
-                            testo
-                        )
+                        codici = re.findall(r'(?<![A-Z0-9])(?:A\d{3}|A[A-Z]\d{2}|ADMM|ADSS|ADEE|ADAA)(?![A-Z0-9])', testo)
                         codici = {c.upper() for c in codici}
                         return classe_target.upper() in codici
 
                     prima = len(df)
-                    df = df[
-                        df[col_classe].apply(
-                            lambda x: contiene_classe_esatta(x, codice_upper)
-                        )
-                    ].copy()
+                    df = df[df[col_classe].apply(lambda x: contiene_classe_esatta(x, codice_upper))].copy()
                     dopo = len(df)
                     logger.info(f"[{codice_upper}] FILTRO CLASSE: {prima} -> {dopo}")
                 else:
@@ -417,13 +402,7 @@ def genera_pdf():
                     logger.info(f"[{codice_upper}] DataFrame vuoto dopo filtri provincia/cognome.")
                     continue
 
-                useless_cols = [
-                    'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE',
-                    'INCLUSIONE CON RISERVA',
-                    'COGNOME',
-                    'NOME',
-                    'ORIGINE'
-                ]
+                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE']
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
