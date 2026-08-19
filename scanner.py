@@ -90,13 +90,86 @@ SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
 SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A076", "A077", "AM56", "A002", "A003", "A005", "A007", "A008", "A009", "A010", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55"}
 
-# Nuovo set specifico per le classi musicali lette dal file dedicato
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
+
+# ========================================================================
+# Mappatura sigle vecchie -> nuove (alcuni file CSV usano codici provincia vecchi)
+# ========================================================================
+SIGLE_ALT = {
+    "PS": "PU",  # Pesaro e Urbino
+    "FO": "FC",  # Forlì-Cesena
+}
+
+# ========================================================================
+# Mappatura codice classe di concorso -> file CSV specifico per numero scuole
+# I file sono nella directory "Numero scuole I grado" su GitHub
+# ========================================================================
+SEC_I_CSV_FILE_MAP = {
+    # Codici vecchio formato (A + 3 cifre)
+    "A011": "A-01 (Arte e Immagine).csv",
+    "A019": "A-12 (Lettere).csv",
+    "A020": "A-12 (Lettere).csv",
+    "A016": "A-22 (AA22 Francese).csv",
+    "A018": "A-22 (AB22 IngleseAltra Lingua).csv",
+    "A023": "A-22 (AC22 Spagnolo).csv",
+    "A024": "A-22 (AD22 Tedesco).csv",
+    "A021": "A-28 (Matematica e Scienze).csv",
+    "A013": "A-30 (Musica).csv",
+    "A015": "A-48 (Scienze Motorie).csv",
+    "A014": "A-60 (Tecnologia).csv",
+    # Codici nuovo formato (A-XX)
+    "A-01": "A-01 (Arte e Immagine).csv",
+    "A-12": "A-12 (Lettere).csv",
+    "AA22": "A-22 (AA22 Francese).csv",
+    "AB22": "A-22 (AB22 IngleseAltra Lingua).csv",
+    "AC22": "A-22 (AC22 Spagnolo).csv",
+    "AD22": "A-22 (AD22 Tedesco).csv",
+    "AE22": "A-22 (AE22 Sloveno).csv",
+    "A-23": "A-23 (Italiano L2).csv",
+    "A-28": "A-28 (Matematica e Scienze).csv",
+    "A-30": "A-30 (Musica).csv",
+    "A-48": "A-48 (Scienze Motorie).csv",
+    "A-60": "A-60 (Tecnologia).csv",
+    # IRC
+    "IRC": "IRC (Religione Cattolica).csv",
+}
+
+# Cache per i file CSV delle scuole (key = nome file CSV)
+_SCUOLE_CSV_CACHE = {}
 
 _SCUOLE_REGOLARE_CACHE = None
 _SCUOLE_MUSICALI_CACHE = None
 SCUOLE_REGOLARI_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
 SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
+
+# ========================================================================
+# NOME_TO_SIGLA e to_sigla a livello modulo (prima erano dentro genera_pdf)
+# ========================================================================
+NOME_TO_SIGLA = {}
+for sigla, (region, nome) in PROVINCE_DATA.items():
+    norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
+    NOME_TO_SIGLA[norm] = sigla
+
+def to_sigla(val):
+    """Converte un nome provincia o sigla nella sigla standard a 2 lettere."""
+    if pd.isna(val):
+        return None
+    v = str(val).strip().upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
+    # Controlla sigle alternative vecchie
+    if v in SIGLE_ALT:
+        return SIGLE_ALT[v]
+    # Controlla sigla diretta
+    if v in PROVINCE_DATA:
+        return v
+    # Controlla nome normalizzato
+    if v in NOME_TO_SIGLA:
+        return NOME_TO_SIGLA[v]
+    # Match parziale sul nome
+    for nome, sigla in NOME_TO_SIGLA.items():
+        if nome in v:
+            return sigla
+    return None
+# ========================================================================
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -131,8 +204,8 @@ def clean_csv_text(raw_text):
 def get_scuole_dict(repo, is_musical=False):
     """
     Legge il file TXT delle scuole tramite API GitHub autenticata.
-    Se is_musical è True, legge il file Riepilogo_Scuole_Musicali.txt.
-    Altrimenti legge Scuole_Statali_Totali_MM.txt.
+    Se is_musical è True, legge Riepilogo_Scuole_Musicali.txt.
+    Altrimenti legge Scuole_Statali_Totali_MM.txt (SOLO per ADMM).
     """
     global _SCUOLE_REGOLARE_CACHE, _SCUOLE_MUSICALI_CACHE
     
@@ -140,14 +213,12 @@ def get_scuole_dict(repo, is_musical=False):
         if _SCUOLE_MUSICALI_CACHE is not None:
             return _SCUOLE_MUSICALI_CACHE
         file_path = SCUOLE_MUSICALI_PATH
-        cache_ref = _SCUOLE_MUSICALI_CACHE
         tipo = "Musicali"
     else:
         if _SCUOLE_REGOLARE_CACHE is not None:
             return _SCUOLE_REGOLARE_CACHE
         file_path = SCUOLE_REGOLARI_PATH
-        cache_ref = _SCUOLE_REGOLARE_CACHE
-        tipo = "Regolari"
+        tipo = "Regolari (MM)"
         
     try:
         logger.info(f"Lettura file scuole ({tipo}) tramite API GitHub...")
@@ -155,17 +226,15 @@ def get_scuole_dict(repo, is_musical=False):
         text = file_content.decoded_content.decode('utf-8', errors='ignore')
         
         scuole_dict = {}
-        norm_to_name = {}
-        for sigla, (region, nome) in PROVINCE_DATA.items():
-            norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
-            norm_to_name[norm] = nome
             
         for line in text.splitlines():
             line = line.strip()
-            if not line: continue
+            if not line:
+                continue
             
             parts = line.split(':')
-            if len(parts) < 2: continue
+            if len(parts) < 2:
+                continue
             
             prov_part = parts[1]
             matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
@@ -173,11 +242,10 @@ def get_scuole_dict(repo, is_musical=False):
             for match in matches:
                 prov_raw = match[0].strip().strip(',')
                 num_str = match[1]
-                norm_prov = prov_raw.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
-                
-                if norm_prov in norm_to_name:
-                    actual_name = norm_to_name[norm_prov]
-                    scuole_dict[actual_name] = int(num_str)
+                sigla = to_sigla(prov_raw)
+                if sigla:
+                    _, nome = PROVINCE_DATA[sigla]
+                    scuole_dict[nome] = int(num_str)
                     
         if not scuole_dict:
             logger.warning(f"Nessun dato trovato nel file .txt delle scuole ({tipo}). Uso fallback a 0.")
@@ -196,6 +264,120 @@ def get_scuole_dict(repo, is_musical=False):
     except Exception as e:
         logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}")
         return SCUOLE_FALLBACK
+
+
+# ========================================================================
+# NUOVA FUNZIONE: get_scuole_dict_from_csv
+# Legge un file CSV specifico per classe di concorso dalla directory
+# "Numero scuole I grado" su GitHub.
+# Formato CSV atteso (dopo clean_csv_text):
+#   PROVINCIA;NUMERO SCUOLE STATALI
+#   RM;318
+#   NA;259
+#   ...
+# ========================================================================
+def get_scuole_dict_from_csv(repo, codice):
+    """
+    Legge il file CSV delle scuole per una specifica classe di concorso.
+    Restituisce un dict {nome_provincia: num_scuole} o None se non c'è un
+    file CSV specifico per questa classe.
+    """
+    global _SCUOLE_CSV_CACHE
+    
+    csv_filename = SEC_I_CSV_FILE_MAP.get(codice)
+    if not csv_filename:
+        # Nessun file CSV specifico per questa classe
+        return None
+    
+    # Cache per nome file (più classi possono condividere lo stesso file es. A019 e A020 -> A-12 Lettere)
+    if csv_filename in _SCUOLE_CSV_CACHE:
+        return _SCUOLE_CSV_CACHE[csv_filename]
+    
+    file_path = f"Numero scuole I grado/{csv_filename}"
+    
+    try:
+        logger.info(f"Lettura file CSV scuole per classe {codice}: {file_path}")
+        file_content = repo.get_contents(file_path)
+        raw_text = file_content.decoded_content.decode('utf-8-sig', errors='ignore')
+        # clean_csv_text rimuove BOM e il prefisso "numero | " da ogni riga
+        text = clean_csv_text(raw_text)
+        
+        # Parse con pandas - prova separatori
+        df = None
+        for sep in [';', ',', '\t', '|']:
+            try:
+                csv_io = io.StringIO(text)
+                df_temp = pd.read_csv(csv_io, sep=sep, dtype=str, skipinitialspace=True)
+                if len(df_temp.columns) >= 2:
+                    df = df_temp
+                    logger.info(f"CSV {codice} parsato con separatore '{sep}': {len(df)} righe, colonne: {list(df.columns)}")
+                    break
+            except Exception:
+                continue
+        
+        scuole_dict = {}
+        
+        if df is not None and len(df.columns) >= 2:
+            # Cerca colonna provincia e colonna numero per nome
+            prov_col = None
+            num_col = None
+            
+            for col in df.columns:
+                col_upper = str(col).upper().strip()
+                if any(k in col_upper for k in ['PROVINC', 'UFFICIO', 'SEDE', 'COMUNE', 'TERRITORIO']):
+                    prov_col = prov_col or col
+                if any(k in col_upper for k in ['NUMERO', 'SCUOLE', 'TOTALE', 'N.', 'N ', 'COUNT', 'QUANTITA']):
+                    num_col = num_col or col
+            
+            # Se non trovate per nome, usa le prime due colonne
+            if not prov_col:
+                prov_col = df.columns[0]
+            if not num_col:
+                num_col = df.columns[1]
+            
+            logger.info(f"Colonna provincia: '{prov_col}', Colonna numero: '{num_col}'")
+            
+            for _, row in df.iterrows():
+                prov_val = str(row[prov_col]).strip()
+                num_val = str(row[num_col]).strip()
+                
+                # to_sigla gestisce anche sigle vecchie (PS->PU, FO->FC)
+                sigla = to_sigla(prov_val)
+                if sigla:
+                    _, nome = PROVINCE_DATA[sigla]
+                    match = re.search(r'(\d+)', num_val)
+                    if match:
+                        scuole_dict[nome] = int(match.group(1))
+        else:
+            # Fallback: parser testuale
+            logger.warning(f"Parse CSV standard fallito per {codice}, provo parser testuale.")
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+[:\-]?\s*(\d+)', line)
+                for match in matches:
+                    prov_raw = match[0].strip().strip(',').strip(':')
+                    num_str = match[1]
+                    sigla = to_sigla(prov_raw)
+                    if sigla:
+                        _, nome = PROVINCE_DATA[sigla]
+                        scuole_dict[nome] = int(num_str)
+        
+        if not scuole_dict:
+            logger.warning(f"Nessun dato trovato nel CSV scuole per {codice}. Uso fallback a 0.")
+            result_dict = SCUOLE_FALLBACK
+        else:
+            logger.info(f"Dizionario scuole CSV per {codice} caricato: {len(scuole_dict)} province trovate.")
+            result_dict = scuole_dict
+            
+        _SCUOLE_CSV_CACHE[csv_filename] = result_dict
+        return result_dict
+        
+    except Exception as e:
+        logger.error(f"Errore critico nel caricamento del CSV scuole per {codice} ({csv_filename}): {e}")
+        return None
+# ========================================================================
 
 def get_all_repo_files(repo, path=""):
     contents = repo.get_contents(path)
@@ -278,29 +460,45 @@ def genera_pdf():
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     dizionario_scuole_altro = SCUOLE_FALLBACK
-    
-    NOME_TO_SIGLA = {nome.upper().replace(" ", "").replace("'", ""): sigla for sigla, (region, nome) in PROVINCE_DATA.items()}
 
-    def to_sigla(val):
-        v = str(val).strip().upper().replace(" ", "").replace("'", "")
-        if v in PROVINCE_DATA: return v
-        if v in NOME_TO_SIGLA: return NOME_TO_SIGLA[v]
-        for nome, sigla in NOME_TO_SIGLA.items():
-            if nome in v: return sigla
-        return None
+    # NOME_TO_SIGLA e to_sigla sono ora a livello modulo (non più definite qui)
 
     for codice in codici_validi:
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         
-        # Logica di selezione del file delle scuole corretto
-        if codice_upper in SEC_I_MUSICAL_CLASSI:
-            scuole_dict = get_scuole_dict(repo, is_musical=True)
-        elif codice_upper in SEC_I_CLASSI:
+        # ====================================================================
+        # LOGICA DI SELEZIONE DEL FILE DELLE SCUOLE CORRETTO
+        # ====================================================================
+        # 1. ADMM -> Scuole_Statali_Totali_MM.txt (SOLO per ADMM)
+        # 2. Classi musicali -> Riepilogo_Scuole_Musicali.txt
+        # 3. Altre classi SEC_I con file CSV specifico -> file CSV dedicato
+        # 4. Altre classi SEC_I senza CSV -> fallback a 0 (NON usa il file MM)
+        # 5. Classi non SEC_I -> fallback a 0
+        
+        if codice_upper == "ADMM":
+            # SOLO ADMM usa il file Scuole_Statali_Totali_MM.txt
             scuole_dict = get_scuole_dict(repo, is_musical=False)
+            logger.info(f"[{codice_upper}] Usato file MM (Scuole_Statali_Totali_MM.txt) per numero scuole.")
+        elif codice_upper in SEC_I_MUSICAL_CLASSI:
+            # Classi musicali usano il file dedicato
+            scuole_dict = get_scuole_dict(repo, is_musical=True)
+            logger.info(f"[{codice_upper}] Usato file scuole musicali per numero scuole.")
+        elif codice_upper in SEC_I_CLASSI:
+            # Prova a leggere il file CSV specifico per questa classe
+            csv_scuole = get_scuole_dict_from_csv(repo, codice_upper)
+            if csv_scuole is not None:
+                scuole_dict = csv_scuole
+                logger.info(f"[{codice_upper}] Usato file CSV specifico per numero scuole.")
+            else:
+                # Nessun file CSV specifico: fallback a 0
+                # NON usa il file MM perche' e' SOLO per ADMM
+                scuole_dict = dizionario_scuole_altro
+                logger.info(f"[{codice_upper}] Nessun file CSV specifico, uso fallback a 0.")
         else:
             scuole_dict = dizionario_scuole_altro
-            
+        # ====================================================================
+        
         expected_prefix = f"RISULTATO_ESTRAZIONE_{codice_upper}_"
         
         file_da_elaborare = []
@@ -592,6 +790,7 @@ def genera_pdf():
 
                 current_prov_sigla = None
                 current_region = None
+                prov_full_name = None
                 pdf.set_font("Helvetica", size=9)
                 row_height = 7
                 
