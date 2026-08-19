@@ -2,6 +2,7 @@ import os
 import re
 import io
 import logging
+import requests
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
 import pandas as pd
@@ -81,34 +82,22 @@ PROVINCE_DATA = {
     "TS": ("Friuli-Venezia Giulia", "Trieste"), "UD": ("Friuli-Venezia Giulia", "Udine"), "VA": ("Lombardia", "Varese"),
     "VE": ("Veneto", "Venezia"), "VB": ("Piemonte", "Verbano-Cusio-Ossola"), "VC": ("Piemonte", "Vercelli"),
     "VR": ("Veneto", "Verona"), "VV": ("Calabria", "Vibo Valentia"), "VI": ("Veneto", "Vicenza"),
-    "VT": ("Lazio", "Viterbo"
-)}
+    "VT": ("Lazio", "Viterbo")
+}
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
 
-SCUOLE_MUSICALI = {
-    "Agrigento": 54, "Alessandria": 9, "Ancona": 18, "Aosta": 0, "Arezzo": 13,
-    "Ascoli Piceno": 10, "Asti": 4, "Avellino": 65, "Bari": 44, "Barletta-Andria-Trani": 10,
-    "Belluno": 13, "Benevento": 36, "Bergamo": 22, "Biella": 5, "Bologna": 23,
-    "Bolzano": 3, "Brescia": 25, "Brindisi": 26, "Cagliari": 18, "Caltanissetta": 28,
-    "Campobasso": 25, "Caserta": 63, "Catania": 61, "Catanzaro": 36, "Chieti": 15,
-    "Como": 14, "Cosenza": 112, "Cremona": 15, "Crotone": 26, "Cuneo": 12,
-    "Enna": 21, "Fermo": 13, "Ferrara": 7, "Firenze": 28, "Foggia": 43,
-    "Forlì-Cesena": 8, "Frosinone": 38, "Gallura Nord-Est Sardegna": 0, "Genova": 16, "Gorizia": 3,
-    "Grosseto": 9, "Imperia": 2, "Isernia": 16, "L'Aquila": 21, "La Spezia": 10,
-    "Latina": 22, "Lecce": 57, "Lecco": 7, "Livorno": 12, "Lodi": 3,
-    "Lucca": 17, "Macerata": 9, "Mantova": 9, "Massa-Carrara": 10, "Matera": 21,
-    "Medio Campidano": 0, "Messina": 36, "Milano": 51, "Modena": 6, "Monza e della Brianza": 14,
-    "Napoli": 116, "Novara": 10, "Nuoro": 10, "Ogliastra": 0, "Oristano": 6,
-    "Padova": 36, "Palermo": 107, "Parma": 10, "Pavia": 7, "Perugia": 18,
-    "Pesaro e Urbino": 16, "Pescara": 20, "Piacenza": 10, "Pisa": 12, "Pistoia": 12,
-    "Pordenone": 3, "Potenza": 38, "Prato": 13, "Ragusa": 23, "Ravenna": 5,
-    "Reggio Calabria": 44, "Reggio Emilia": 4, "Rieti": 19, "Rimini": 5, "Roma": 69,
-    "Rovigo": 25, "Salerno": 80, "Sassari": 40, "Savona": 4, "Siena": 9,
-    "Siracusa": 23, "Sondrio": 11, "Sulcis Iglesiente": 0, "Taranto": 26, "Teramo": 15,
-    "Terni": 5, "Torino": 49, "Trapani": 38, "Trento": 0, "Treviso": 51,
-    "Trieste": 6, "Udine": 6, "Varese": 17, "Venezia": 29, "Verbano-Cusio-Ossola": 6,
-    "Vercelli": 9, "Verona": 26, "Vibo Valentia": 38, "Vicenza": 43, "Viterbo": 18
+# Fallback per gli altri ordini di scuola (se diverso da zero per default)
+SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
+
+# Lista delle classi di concorso della Scuola Secondaria di I grado (prese dal frontend)
+SEC_I_CLASSI = {
+    "AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A076", "A077", "AM56",
+    "A002", "A003", "A005", "A007", "A008", "A009", "A010", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55"
 }
+
+# Variabile globale per la cache del dizionario dinamico delle scuole
+_SCUOLE_DICT_CACHE = None
+SCUOLE_TXT_URL = "https://raw.githubusercontent.com/scuolagps/dati-privati-pdf/main/Numero%20scuole%20I%20grado/Scuole_Statali_Totali_MM.txt"
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -155,6 +144,57 @@ def clean_csv_text(raw_text):
     # Rimuove pattern del tipo "123 | " all'inizio di ogni riga
     text = re.sub(r'^\d+\s*\|\s*', '', text, flags=re.MULTILINE)
     return text
+
+def get_dynamic_scuole_dict():
+    """
+    Scarica il file .txt da GitHub e estrae dinamicamente il numero di scuole per provincia.
+    Ritorna un dizionario {Nome_Provincia: Numero_Scuole}.
+    """
+    global _SCUOLE_DICT_CACHE
+    if _SCUOLE_DICT_CACHE is not None:
+        return _SCUOLE_DICT_CACHE
+        
+    try:
+        logger.info("Scaricamento file scuole dinamiche da GitHub...")
+        resp = requests.get(SCUOLE_TXT_URL, timeout=15)
+        resp.raise_for_status()
+        text = resp.text
+        
+        scuole_dict = {}
+        # Lista di tutti i nomi di provincia accettati
+        all_prov_names = [nome for sigla, (region, nome) in PROVINCE_DATA.items()]
+        
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+                
+            matched_prov = None
+            # Cerca se una provincia è menzionata nella riga
+            for nome in all_prov_names:
+                if nome.lower() in line.lower():
+                    matched_prov = nome
+                    break
+                    
+            if matched_prov:
+                # Estrae tutti i numeri dalla riga (es. se è "1 | Agrigento 54", nums = ['1', '54'])
+                nums = re.findall(r'\b\d+\b', line)
+                if nums:
+                    # Prende l'ultimo numero trovato come valore sicuro (salta eventuali ID di riga iniziali)
+                    scuole_dict[matched_prov] = int(nums[-1])
+                    
+        if not scuole_dict:
+            logger.warning("Nessun dato trovato nel file .txt delle scuole. Uso fallback a 0.")
+            _SCUOLE_DICT_CACHE = SCUOLE_FALLBACK
+        else:
+            logger.info(f"Dizionario scuole dinamico caricato: {len(scuole_dict)} province trovate.")
+            _SCUOLE_DICT_CACHE = scuole_dict
+            
+        return _SCUOLE_DICT_CACHE
+    except Exception as e:
+        logger.error(f"Errore critico nel caricamento del file scuole dinamiche: {e}")
+        _SCUOLE_DICT_CACHE = SCUOLE_FALLBACK
+        return _SCUOLE_DICT_CACHE
 
 def get_all_repo_files(repo, path=""):
     """Scansiona tutto il repo per trovare i file csv in qualsiasi sottocartella."""
@@ -230,6 +270,10 @@ def genera_pdf():
     trovato_almeno_uno = False
     stats_data = {} 
     
+    # Carichiamo i dizionari necessari
+    dizionario_scuole_sec_I = get_dynamic_scuole_dict()
+    dizionario_scuole_altro = SCUOLE_FALLBACK # Default 0 per infanzia/primaria e sec II
+    
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
@@ -248,9 +292,15 @@ def genera_pdf():
         return None
 
     for codice in codici_validi:
-        fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_upper = codice.upper()
+        fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         
+        # Decide quale dizionario scuole usare per questa classe
+        if codice_upper in SEC_I_CLASSI:
+            scuole_dict = dizionario_scuole_sec_I
+        else:
+            scuole_dict = dizionario_scuole_altro
+            
         expected_prefix = f"RISULTATO_ESTRAZIONE_{codice_upper}_"
         
         file_da_elaborare = []
@@ -262,7 +312,6 @@ def genera_pdf():
             if f.name.startswith('~$'):
                 continue
                 
-            # MATCH ESATTO SUL PREFISSO DEL NOME FILE - ORA CERCA SOLO .CSV
             if f.name.upper().startswith(expected_prefix) and f.name.lower().endswith('.csv'):
                 if f.name in nomi_file_visti:
                     continue
@@ -292,13 +341,11 @@ def genera_pdf():
                     file_content = repo.get_contents(file_trovato.path)
                     file_data = file_content.decoded_content
                     
-                    # Decodifica e pulisce il testo del CSV
                     csv_text = file_data.decode('utf-8-sig', errors='ignore')
                     csv_text = clean_csv_text(csv_text)
 
                     try:
                         csv_io = io.StringIO(csv_text)
-                        # dtype=str previene che 1 diventi 1.0 o che numeri con virgola si rompano
                         df_temp = pd.read_csv(csv_io, sep=';', dtype=str) 
                     except Exception as e:
                         logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
@@ -332,9 +379,6 @@ def genera_pdf():
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'
                 }, inplace=True, errors='ignore')
 
-                # ============================================================
-                # FILTRO RIGOROSO: MANTIENI SOLO LA CLASSE SELEZIONATA
-                # ============================================================
                 col_classe = None
                 for col in df.columns:
                     col_upper = str(col).strip().upper()
@@ -404,7 +448,6 @@ def genera_pdf():
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
-                # BUG FIX: Cerca la colonna specifica del punteggio TOTALE, non la prima che contiene "punteggio"
                 col_punteggio_sep = None
                 for col in df.columns:
                     col_upper = str(col).upper().strip()
@@ -420,7 +463,8 @@ def genera_pdf():
                         sigla_str = str(sigla).upper()
                         region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
                         
-                        num_scuole = SCUOLE_MUSICALI.get(nome_esteso, 0)
+                        # Prende il numero di scuole dal dizionario corretto
+                        num_scuole = scuole_dict.get(nome_esteso, 0)
                         num_candidati = int(count)
                         rapporto = round(num_scuole / num_candidati, 4) if num_candidati > 0 else 0
                         
@@ -430,7 +474,6 @@ def genera_pdf():
                         
                         if col_punteggio_sep:
                             prov_df = df[df[col_ufficio] == sigla_str].copy()
-                            # Usa la nuova funzione per estrarre TUTTO il numero, decimali inclusi
                             prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
                             prov_df = prov_df.dropna(subset=['punteggio_num'])
                             
@@ -441,10 +484,8 @@ def genera_pdf():
                                 min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
                                 median_score = float(prov_df['punteggio_num'].median())
                                 
-                                # Formatta mantenendo la virgola e i decimali reali (es. 83,5 o 83,50)
                                 top_candidate = str(max_score).replace('.', ',')
                                 bottom_candidate = str(min_score).replace('.', ',')
-                                # Se il numero è intero (es. 168.0), rimuove il ",0"
                                 if top_candidate.endswith(',0'): top_candidate = top_candidate.replace(',0', '')
                                 if bottom_candidate.endswith(',0'): bottom_candidate = bottom_candidate.replace(',0', '')
                                 
@@ -684,7 +725,6 @@ def genera_bollettino():
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
-        # Aggiornato per cercare il file CSV del bollettino
         file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.CSV"), None)
         if not file_obj:
             return jsonify({"error": "File Risultato_Estrazione_Bollettini.csv non trovato nel repository."}), 404
@@ -732,7 +772,6 @@ def genera_bollettino():
                 if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
                     continue
                     
-                # Usa la funzione di pulizia per mantenere i decimali
                 punt = pulisci_punteggio(punt_val)
                 if punt is None:
                     continue
@@ -786,7 +825,6 @@ def genera_bollettino():
         prob_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
         prob_f2 = round((r["nomine_f2"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
         
-        # Formattazione finale che mantiene la virgola e i decimali reali, senza forzare .00
         min_f1_str = str(r['min_f1']).replace('.', ',') if r['min_f1'] is not None else "N/D"
         min_f2_str = str(r['min_f2']).replace('.', ',') if r['min_f2'] is not None else "N/D"
         if min_f1_str.endswith(',0'): min_f1_str = min_f1_str.replace(',0', '')
