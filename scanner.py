@@ -2,7 +2,6 @@ import os
 import re
 import io
 import logging
-import zipfile
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
 import pandas as pd
@@ -82,8 +81,8 @@ PROVINCE_DATA = {
     "TS": ("Friuli-Venezia Giulia", "Trieste"), "UD": ("Friuli-Venezia Giulia", "Udine"), "VA": ("Lombardia", "Varese"),
     "VE": ("Veneto", "Venezia"), "VB": ("Piemonte", "Verbano-Cusio-Ossola"), "VC": ("Piemonte", "Vercelli"),
     "VR": ("Veneto", "Verona"), "VV": ("Calabria", "Vibo Valentia"), "VI": ("Veneto", "Vicenza"),
-    "VT": ("Lazio", "Viterbo")
-}
+    "VT": ("Lazio", "Viterbo"
+)}
 PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items() }
 
 SCUOLE_MUSICALI = {
@@ -119,40 +118,46 @@ def sanitize_for_fpdf(text):
 def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
-def fix_excel_encoding(file_data):
+def pulisci_punteggio(valore):
     """
-    Safety net: rimuove qualsiasi attributo encoding="..." dai file XML interni
-    per prevenire errori openpyxl con vecchi file corrotti.
+    Converte stringhe sporche come '83 | 50' in 83.5 (float per i calcoli).
+    Mantiene i decimali senza arrotondamenti.
     """
-    try:
-        z = zipfile.ZipFile(io.BytesIO(file_data))
-        fixed_data = io.BytesIO()
-        has_fixed = False
+    s = str(valore).strip()
+    if not s or s.lower() in ['nan', 'none', '*', '-', '']:
+        return None
         
-        with zipfile.ZipFile(fixed_data, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for item in z.infolist():
-                content = z.read(item.filename)
-                if b'encoding' in content.lower():
-                    original_content = content
-                    content = re.sub(rb'encoding\s*=\s*["\'][^"\']*["\']', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
-                    content = re.sub(rb'encoding\s*=\s*[^"\'>\s]+', b'encoding="UTF-8"', content, flags=re.IGNORECASE)
-                    if content != original_content:
-                        has_fixed = True
-                zf.writestr(item, content)
-                
-        if has_fixed:
-            logger.info("Fix encoding applicato a vecchio file corrotto.")
-            
-        return fixed_data.getvalue()
+    s = s.replace('*', '')
+    
+    # Se il punteggio ha la barra (es. "83 | 50"), ricostruiamo il decimale -> "83.50"
+    if ' | ' in s:
+        parti = s.split(' | ')
+        intero = parti[0].strip().replace(',', '.')
+        decimale = parti[1].strip()
+        s = f"{intero}.{decimale}"
+    else:
+        # Sostituisce la virgola con il punto per i normali decimali "83,5" -> "83.5"
+        s = s.replace(',', '.')
         
-    except zipfile.BadZipFile:
-        return file_data
-    except Exception as e:
-        logger.error(f"Errore in fix_excel_encoding: {str(e)}")
-        return file_data
+    # Estrae il numero decimale pulito
+    match = re.search(r'(\d+\.?\d*)', s)
+    if match:
+        return float(match.group(1))
+    return None
+
+def clean_csv_text(raw_text):
+    """
+    Pulisce il testo grezzo del CSV.
+    Rimuove eventuali numeri di riga iniziali (es. "1 | ") che causano 
+    errori nel parsing di Pandas, e gestisce la BOM (UTF-8 BOM).
+    """
+    text = raw_text.lstrip('\ufeff')
+    # Rimuove pattern del tipo "123 | " all'inizio di ogni riga
+    text = re.sub(r'^\d+\s*\|\s*', '', text, flags=re.MULTILINE)
+    return text
 
 def get_all_repo_files(repo, path=""):
-    """Scansiona tutto il repo per trovare i file excel in qualsiasi sottocartella."""
+    """Scansiona tutto il repo per trovare i file csv in qualsiasi sottocartella."""
     contents = repo.get_contents(path)
     files = []
     for content in contents:
@@ -197,7 +202,6 @@ def genera_pdf():
         if sigla:
             province_sigle.append(sigla)
             
-    logger.info(f"DEBUG 1: Filtri ricevuti -> Classi: {classi_selezionate} | Province Nomi: {province_nomi} | Sigle generate: {province_sigle} | Fascia: '{fascia_richiesta}' (Normalizzata: '{normalize_string(fascia_richiesta)}')")
     codici_validi = []
     for codice in classi_selezionate:
         identificativo = codice.split(' - ')[0].strip()
@@ -247,7 +251,6 @@ def genera_pdf():
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
         codice_upper = codice.upper()
         
-        # Prefisso ESATTO per evitare di pescare A023 quando si cerca A028
         expected_prefix = f"RISULTATO_ESTRAZIONE_{codice_upper}_"
         
         file_da_elaborare = []
@@ -259,13 +262,13 @@ def genera_pdf():
             if f.name.startswith('~$'):
                 continue
                 
-            # MATCH ESATTO SUL PREFISSO DEL NOME FILE
-            if f.name.upper().startswith(expected_prefix) and (f.name.lower().endswith('.xlsx') or f.name.lower().endswith('.xls')):
+            # MATCH ESATTO SUL PREFISSO DEL NOME FILE - ORA CERCA SOLO .CSV
+            if f.name.upper().startswith(expected_prefix) and f.name.lower().endswith('.csv'):
                 if f.name in nomi_file_visti:
                     continue
                     
                 if fascia_norm:
-                    file_fascia_part = f.name.upper()[len(expected_prefix):].replace('.XLSX', '').replace('.XLS', '')
+                    file_fascia_part = f.name.upper()[len(expected_prefix):].replace('.CSV', '')
                     file_fascia_norm = normalize_string(file_fascia_part)
                     if file_fascia_norm == fascia_norm:
                         file_da_elaborare.append(f)
@@ -289,19 +292,19 @@ def genera_pdf():
                     file_content = repo.get_contents(file_trovato.path)
                     file_data = file_content.decoded_content
                     
-                    if len(file_data) > 10 * 1024 * 1024: 
-                        continue
-                        
-                    fixed_data = fix_excel_encoding(file_data)
+                    # Decodifica e pulisce il testo del CSV
+                    csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                    csv_text = clean_csv_text(csv_text)
 
                     try:
-                        excel_io = io.BytesIO(fixed_data)
-                        df_temp = pd.read_excel(excel_io, engine='openpyxl')
+                        csv_io = io.StringIO(csv_text)
+                        # dtype=str previene che 1 diventi 1.0 o che numeri con virgola si rompano
+                        df_temp = pd.read_csv(csv_io, sep=';', dtype=str) 
                     except Exception as e:
-                        logger.error(f"ERRORE OPENPYXL per {file_trovato.name}: {e}", exc_info=True)
+                        logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
                         continue
                     
-                    fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".xlsx", "").replace(".xls", "").strip().upper()
+                    fascia_nome = file_trovato.name.split(codice)[-1].replace("_", " ").replace(".csv", "").strip().upper()
                     if not fascia_nome:
                         fascia_nome = "DETTAGLI"
                         
@@ -344,18 +347,13 @@ def genera_pdf():
                         break
 
                 if col_classe and not df.empty:
-                    # --------------------------------------------------------
-                    # Normalizzazione del valore della classe
-                    # --------------------------------------------------------
                     def contiene_classe_esatta(valore, classe_target):
                         if pd.isna(valore):
                             return False
                         testo = str(valore).upper().strip()
-                        # Uniforma separatori
                         testo = testo.replace('-', ' ')
                         testo = testo.replace('_', ' ')
                         testo = re.sub(r'\s+', ' ', testo)
-                        # Cerca codici classe italiani
                         codici = re.findall(
                             r'(?<![A-Z0-9])'
                             r'(?:A\d{3}|A[A-Z]\d{2}|ADMM|ADSS|ADEE|ADAA)'
@@ -366,45 +364,15 @@ def genera_pdf():
                         return classe_target.upper() in codici
 
                     prima = len(df)
-                    
-                    # --------------------------------------------------------
-                    # WHITELIST: per A028 devono rimanere SOLO righe A028
-                    # --------------------------------------------------------
                     df = df[
                         df[col_classe].apply(
                             lambda x: contiene_classe_esatta(x, codice_upper)
                         )
                     ].copy()
-
                     dopo = len(df)
-
-                    logger.info(
-                        f"[{codice_upper}] FILTRO CLASSE: "
-                        f"{prima} righe prima -> {dopo} righe dopo"
-                    )
-
-                    # DEBUG AGGIUNTIVO
-                    if not df.empty:
-                        classi_presenti = (
-                            df[col_classe]
-                            .astype(str)
-                            .str.upper()
-                            .drop_duplicates()
-                            .tolist()
-                        )
-                        logger.info(
-                            f"[{codice_upper}] Classi effettivamente presenti dopo filtro: "
-                            f"{classi_presenti[:20]}"
-                        )
-                    else:
-                        logger.warning(
-                            f"[{codice_upper}] Nessuna riga rimasta dopo il filtro classe."
-                        )
+                    logger.info(f"[{codice_upper}] FILTRO CLASSE: {prima} -> {dopo}")
                 else:
-                    logger.warning(
-                        f"[{codice_upper}] Colonna classe non trovata nel file. "
-                        f"Viene utilizzato esclusivamente il filtro sul nome file."
-                    )
+                    logger.warning(f"[{codice_upper}] Colonna classe non trovata. Uso solo filtro nome file.")
 
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
@@ -436,7 +404,15 @@ def genera_pdf():
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
 
-                col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
+                # BUG FIX: Cerca la colonna specifica del punteggio TOTALE, non la prima che contiene "punteggio"
+                col_punteggio_sep = None
+                for col in df.columns:
+                    col_upper = str(col).upper().strip()
+                    if col_upper == 'PUNTEGGIO TOTALE':
+                        col_punteggio_sep = col
+                        break
+                if not col_punteggio_sep:
+                    col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
                 
                 if col_ufficio:
                     counts = df[col_ufficio].value_counts()
@@ -454,9 +430,8 @@ def genera_pdf():
                         
                         if col_punteggio_sep:
                             prov_df = df[df[col_ufficio] == sigla_str].copy()
-                            prov_df['punteggio_num'] = prov_df[col_punteggio_sep].astype(str).str.replace(',', '.').str.replace('*', '').str.extract(r'(\d+\.?\d*)')[0]
-                            prov_df = prov_df.dropna(subset=['punteggio_num'])
-                            prov_df['punteggio_num'] = pd.to_numeric(prov_df['punteggio_num'], errors='coerce')
+                            # Usa la nuova funzione per estrarre TUTTO il numero, decimali inclusi
+                            prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
                             prov_df = prov_df.dropna(subset=['punteggio_num'])
                             
                             if not prov_df.empty:
@@ -465,8 +440,13 @@ def genera_pdf():
                                 max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
                                 min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
                                 median_score = float(prov_df['punteggio_num'].median())
-                                top_candidate = f"{max_score:.2f}".replace('.', ',')
-                                bottom_candidate = f"{min_score:.2f}".replace('.', ',')
+                                
+                                # Formatta mantenendo la virgola e i decimali reali (es. 83,5 o 83,50)
+                                top_candidate = str(max_score).replace('.', ',')
+                                bottom_candidate = str(min_score).replace('.', ',')
+                                # Se il numero è intero (es. 168.0), rimuove il ",0"
+                                if top_candidate.endswith(',0'): top_candidate = top_candidate.replace(',0', '')
+                                if bottom_candidate.endswith(',0'): bottom_candidate = bottom_candidate.replace(',0', '')
                                 
                         if nome_esteso not in stats_data:
                             stats_data[nome_esteso] = {
@@ -503,7 +483,7 @@ def genera_pdf():
                     
                     if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col:
                         cols_to_drop.append(col)
-                    if 'pdf' in str(col).lower() or 'xls' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower():
+                    if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower():
                         cols_to_drop.append(col)
                 df = df.drop(columns=cols_to_drop, errors='ignore')
 
@@ -704,13 +684,15 @@ def genera_bollettino():
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
-        file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.XLSX"), None)
+        # Aggiornato per cercare il file CSV del bollettino
+        file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.CSV"), None)
         if not file_obj:
-            return jsonify({"error": "File Risultato_Estrazione_Bollettini.xlsx non trovato nel repository."}), 404
+            return jsonify({"error": "File Risultato_Estrazione_Bollettini.csv non trovato nel repository."}), 404
         
         file_data = file_obj.decoded_content
-        fixed_data = fix_excel_encoding(file_data)
-        df = pd.read_excel(io.BytesIO(fixed_data), engine='openpyxl')
+        csv_text = file_data.decode('utf-8-sig', errors='ignore')
+        csv_text = clean_csv_text(csv_text)
+        df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str)
     except Exception as e:
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
@@ -749,8 +731,12 @@ def genera_bollettino():
                 punt_val = row.get('Punteggio')
                 if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
                     continue
-                punt_raw = str(punt_val).replace(',', '.').replace('*', '')
-                punt = float(punt_raw)
+                    
+                # Usa la funzione di pulizia per mantenere i decimali
+                punt = pulisci_punteggio(punt_val)
+                if punt is None:
+                    continue
+                    
             except (ValueError, TypeError):
                 continue
 
@@ -800,12 +786,18 @@ def genera_bollettino():
         prob_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
         prob_f2 = round((r["nomine_f2"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
         
+        # Formattazione finale che mantiene la virgola e i decimali reali, senza forzare .00
+        min_f1_str = str(r['min_f1']).replace('.', ',') if r['min_f1'] is not None else "N/D"
+        min_f2_str = str(r['min_f2']).replace('.', ',') if r['min_f2'] is not None else "N/D"
+        if min_f1_str.endswith(',0'): min_f1_str = min_f1_str.replace(',0', '')
+        if min_f2_str.endswith(',0'): min_f2_str = min_f2_str.replace(',0', '')
+        
         out_data.append({
             "regione": r['regione'],
             "provincia": prov,
             "nomine_totali": r["nomine_totali"],
-            "min_f1": f"{r['min_f1']:.2f}".replace('.', ',') if r['min_f1'] is not None else "N/D",
-            "min_f2": f"{r['min_f2']:.2f}".replace('.', ',') if r['min_f2'] is not None else "N/D",
+            "min_f1": min_f1_str,
+            "min_f2": min_f2_str,
             "assorbimento_f1": assorb_f1,
             "prob_f1": prob_f1,
             "prob_f2": prob_f2,
