@@ -210,6 +210,10 @@ for sigla, (region, nome) in PROVINCE_DATA.items():
     region_norm = region.upper().replace(" ", "").replace("-", "").replace("'", "").replace(".", "")
     region_norm = region_norm.replace('À', 'A').replace('È', 'E').replace('Ì', 'I').replace('Ò', 'O').replace('Ù', 'U')
     REGIONI_NORM.add(region_norm)
+    # *** FIX: popola NOME_TO_SIGLA con i nomi provincia normalizzati -> sigla ***
+    nome_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
+    nome_norm = nome_norm.replace('À', 'A').replace('È', 'E').replace('Ì', 'I').replace('Ò', 'O').replace('Ù', 'U')
+    NOME_TO_SIGLA[nome_norm] = sigla
 
 def to_sigla(val):
     if pd.isna(val):
@@ -310,7 +314,29 @@ def get_scuole_dict(repo, is_musical=False):
         logger.info(f"=== FINE DEBUG ===")
 
         scuole_dict = {}
+        # ================================================================
+        # STRATEGY 0: Formato "Regione N scuole: Prov1 N1, Prov2 N2, ..."
+        # ================================================================
+        for line in lines_all:
+            line = line.strip()
+            if not line:
+                continue
+            # Cerca "scuole:" e prende la parte dopo
+            if 'scuole' in line.lower():
+                parts = re.split(r'scuole\s*:', line, flags=re.IGNORECASE)
+                if len(parts) > 1:
+                    prov_part = parts[1]
+                    # Estrai tutte le coppie "NomeProvincia Numero"
+                    matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
+                    for match in matches:
+                        prov_raw = match[0].strip().strip(',').strip()
+                        num_str = match[1]
+                        sigla = to_sigla(prov_raw)
+                        if sigla:
+                            _, nome = PROVINCE_DATA[sigla]
+                            scuole_dict[nome] = int(num_str)
 
+        logger.info(f"Strategy 0 (formato 'scuole:'): {len(scuole_dict)} province.")
         # ================================================================
         # STRATEGY 1: Riga per riga - sigla provincia + numero
         # Es: "AG: 5" / "AG 5" / "AG;5" / "AG\t5" / "AG - 5"
