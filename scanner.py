@@ -88,7 +88,20 @@ SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
 SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A076", "A077", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AM56", "AM70", "AM71", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55", "A-01", "A-12", "A-23", "A-28", "A-30", "A-48", "A-60", "AA22", "AB22", "AC22", "AD22", "AE22", "IRC"}
 
+# Musicali Sec. I grado (codici 56) - valgono sia per I che II Fascia
+# NOTA: i codici 55 (AA55, AB55, ...) si riferiscono alla Sec. II grado, NON Sec. I
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
+
+# ========================================================================
+# Cartelle specifiche per estrazioni Scuola Secondaria I grado
+# - I Fascia  -> Estrazione_MM_1_Fascia/
+# - II Fascia -> Estrazione_MM_2_Fascia/
+# Le classi di concorso sono le STESSE per I e II Fascia (cambia solo il file)
+# ========================================================================
+ESTRAZIONE_I_FASCIA_FOLDER = "Estrazione_MM_1_Fascia"
+ESTRAZIONE_I_FASCIA_PREFIX = ESTRAZIONE_I_FASCIA_FOLDER + "/"
+ESTRAZIONE_II_FASCIA_FOLDER = "Estrazione_MM_2_Fascia"
+ESTRAZIONE_II_FASCIA_PREFIX = ESTRAZIONE_II_FASCIA_FOLDER + "/"
 
 # ========================================================================
 # Mappatura sigle vecchie -> nuove
@@ -145,7 +158,6 @@ SEC_I_CSV_FILE_MAP = {
 
 # ========================================================================
 # Mappatura completa codici equivalenti per ricerca file di estrazione
-# Basata sui nomi file reali nel repository
 # ========================================================================
 CODICI_EQUIVALENTI = {
     # Arte e immagine: file = AM01
@@ -204,7 +216,6 @@ SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
 # NOME_TO_SIGLA e to_sigla a livello modulo
 # ========================================================================
 NOME_TO_SIGLA = {}
-# Set di nomi regione normalizzati (per evitare match falsi)
 REGIONI_NORM = set()
 for sigla, (region, nome) in PROVINCE_DATA.items():
     region_norm = region.upper().replace(" ", "").replace("-", "").replace("'", "").replace(".", "")
@@ -216,34 +227,24 @@ def to_sigla(val):
     if pd.isna(val):
         return None
     v = str(val).strip().upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
-    # Rimuovi accenti
     v = v.replace('À', 'A').replace('Á', 'A').replace('È', 'E').replace('É', 'E')
     v = v.replace('Ì', 'I').replace('Í', 'I').replace('Ò', 'O').replace('Ó', 'O')
     v = v.replace('Ù', 'U').replace('Ú', 'U').replace('Ü', 'U')
 
-    # Se il valore E' esattamente un nome regione, non e' una provincia
     if v in REGIONI_NORM:
         return None
 
-    # Sigle alternative vecchie
     if v in SIGLE_ALT:
         return SIGLE_ALT[v]
-    # Match diretto sigla (es. "RM")
     if v in PROVINCE_DATA:
         return v
-    # Match diretto nome (es. "ROMA")
     if v in NOME_TO_SIGLA:
         return NOME_TO_SIGLA[v]
 
-    # Match parziale: cerca il nome provincia piu lungo trovato
-    # MA salta se il nome provincia e' contenuto in un nome regione
-    # che e' anch'esso contenuto nel valore (es. "ROMA" in "EMILIAROMAGNA")
     best_match = None
     best_len = 0
     for nome, sigla in NOME_TO_SIGLA.items():
         if nome in v and len(nome) > best_len:
-            # Controlla se questo match e' un falso positivo
-            # (il nome provincia e' parte di un nome regione nel valore)
             is_inside_region = False
             for region_norm in REGIONI_NORM:
                 if nome in region_norm and region_norm in v:
@@ -505,13 +506,17 @@ def genera_pdf():
 
         # ====================================================================
         # Logica selezione file numero scuole
+        # Le classi di concorso sono le STESSE per I e II Fascia (Sec. I grado)
+        # - ADMM -> Scuole_Statali_Totali_MM.txt
+        # - Musicali (AA56, AB56, ...) -> Riepilogo_Scuole_Musicali.txt
+        # - Altre classi -> file CSV specifico (es. A-12 (Lettere).csv)
         # ====================================================================
         if codice_upper == "ADMM":
             scuole_dict = get_scuole_dict(repo, is_musical=False)
-            logger.info(f"[{codice_upper}] Usato file MM per numero scuole.")
+            logger.info(f"[{codice_upper}] Usato file MM (Scuole_Statali_Totali_MM.txt) per numero scuole.")
         elif codice_upper in SEC_I_MUSICAL_CLASSI:
             scuole_dict = get_scuole_dict(repo, is_musical=True)
-            logger.info(f"[{codice_upper}] Usato file scuole musicali.")
+            logger.info(f"[{codice_upper}] Usato file scuole musicali (Riepilogo_Scuole_Musicali.txt).")
         elif codice_upper in SEC_I_CLASSI or codice_upper in SEC_I_CSV_FILE_MAP:
             csv_scuole = get_scuole_dict_from_csv(repo, codice_upper)
             if csv_scuole is not None:
@@ -524,11 +529,53 @@ def genera_pdf():
             scuole_dict = dizionario_scuole_altro
 
         # ====================================================================
+        # Selezione cartella di ricerca file estrazione per Sec. I grado
+        # - I Fascia  -> SOLO cartella Estrazione_MM_1_Fascia/
+        # - II Fascia -> SOLO cartella Estrazione_MM_2_Fascia/
+        # - Tutte le fasce -> entrambe le cartelle (I + II Fascia)
+        # Per altri ordini scuola: root ESCLUDENDO le due sottocartelle
+        # ====================================================================
+        is_sec_i_codice = (codice_upper in SEC_I_CLASSI or
+                           codice_upper in SEC_I_MUSICAL_CLASSI or
+                           codice_upper in SEC_I_CSV_FILE_MAP or
+                           codice_upper == "ADMM")
+        fascia_upper = (fascia_richiesta or "").upper().strip()
+        is_i_fascia_selected = (fascia_upper == "I_FASCIA" or
+                                fascia_upper == "1_FASCIA" or
+                                fascia_upper == "IFASCIA")
+        is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or
+                                 fascia_upper == "2_FASCIA" or
+                                 fascia_upper == "IIFASCIA")
+
+        if is_sec_i_codice and is_i_fascia_selected:
+            # Sec. I grado + I Fascia: SOLO cartella Estrazione_MM_1_Fascia
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_I_FASCIA_FOLDER}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
+        elif is_sec_i_codice and is_ii_fascia_selected:
+            # Sec. I grado + II Fascia: SOLO cartella Estrazione_MM_2_Fascia
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_II_FASCIA_FOLDER}' (Sec I + II Fascia). {len(files_to_search)} candidati.")
+        elif is_sec_i_codice and not fascia_richiesta:
+            # Sec. I grado + "Tutte le fasce": entrambe le cartelle
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) or
+                                  f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_I_FASCIA_FOLDER}' + '{ESTRAZIONE_II_FASCIA_FOLDER}' (Tutte le fasce). {len(files_to_search)} candidati.")
+        else:
+            # Altri ordini scuola: root ESCLUDENDO le due sottocartelle Sec. I
+            files_to_search = [f for f in root_files
+                               if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and
+                                  not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle Sec I). {len(files_to_search)} candidati.")
+
+        # ====================================================================
         # Ricerca file di estrazione con tutti i codici equivalenti
         # ====================================================================
         file_da_elaborare = []
         nomi_file_visti = set()
-        for f in root_files:
+        for f in files_to_search:
             if hasattr(f, 'type') and f.type != 'file':
                 continue
             if f.name.startswith('~$'):
@@ -562,7 +609,6 @@ def genera_pdf():
             lista_dati = []
             for file_trovato in file_da_elaborare:
                 try:
-                    # Use download_url for reliability (fix: unsupported encoding: none)
                     if hasattr(file_trovato, 'download_url') and file_trovato.download_url:
                         response = requests.get(file_trovato.download_url)
                         file_data = response.content
@@ -577,7 +623,6 @@ def genera_pdf():
                     except Exception as e:
                         logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
                         continue
-                    # Estrai nome fascia trovando quale codice e' nel nome file
                     fascia_nome = "DETTAGLI"
                     for cod_ric in codici_ricerca:
                         if cod_ric in file_trovato.name:
@@ -767,7 +812,7 @@ def genera_pdf():
                 if total_width > 0:
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
-                    total_width_scaled = sum(col_widths.values())
+                    total_width_scaled = sum(col_widths.values)
                 pdf.set_font("Helvetica", 'B', 9)
                 line_height = 5
                 max_lines = 2
@@ -900,7 +945,6 @@ def genera_bollettino():
         file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.CSV"), None)
         if not file_obj:
             return jsonify({"error": "File Risultato_Estrazione_Bollettini.csv non trovato nel repository."}), 404
-        # Use download_url for reliability (fix: unsupported encoding: none)
         if hasattr(file_obj, 'download_url') and file_obj.download_url:
             response = requests.get(file_obj.download_url)
             file_data = response.content
