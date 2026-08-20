@@ -291,64 +291,69 @@ def get_scuole_dict(repo, is_musical=False):
         file_path = SCUOLE_REGOLARI_PATH
         tipo = "Regolari (MM)"
     try:
-        logger.info(f"Lettura file scuole ({tipo}) tramite API GitHub: {file_path}")
+        logger.info(f"Lettura file scuole ({tipo}): {file_path}")
         file_content = repo.get_contents(file_path)
-        text = file_content.decoded_content.decode('utf-8', errors='ignore')
+        raw_bytes = file_content.decoded_content
+        text = raw_bytes.decode('utf-8', errors='ignore')
 
-        # ====================================================================
-        # DEBUG: stampa le prime 10 righe per capire il formato del file
-        # ====================================================================
-        lines_all = text.splitlines()
-        logger.info(f"File ({tipo}) ha {len(lines_all)} righe totali. Prime 10 righe:")
-        for i, line in enumerate(lines_all[:10]):
-            logger.info(f"  Riga {i}: [{line}]")
+        # Normalizza BOM e fine riga
+        text = text.replace('\ufeff', '').replace('\r\n', '\n').replace('\r', '\n')
+
+        # ================================================================
+        # DEBUG ESTESO: stampa prime 20 righe per capire il formato
+        # ================================================================
+        lines_all = [l for l in text.split('\n')]
+        logger.info(f"=== DEBUG FILE ({tipo}) ===")
+        logger.info(f"Totale righe: {len(lines_all)} | Lunghezza testo: {len(text)} caratteri")
+        for i, line in enumerate(lines_all[:20]):
+            logger.info(f"  Riga {i} [{len(line)} chars]: |{line}|")
+        logger.info(f"=== FINE DEBUG ===")
 
         scuole_dict = {}
 
-        # ====================================================================
-        # PARSING FLESSIBILE - prova molteplici formati
-        # ====================================================================
+        # ================================================================
+        # STRATEGY 1: Riga per riga - sigla provincia + numero
+        # Es: "AG: 5" / "AG 5" / "AG;5" / "AG\t5" / "AG - 5"
+        # ================================================================
         for line in lines_all:
             line = line.strip()
-            if not line:
+            if not line or len(line) < 3:
                 continue
-
-            # --- Approccio 1: riga con sigla provincia e numero ---
-            # Es: "AG: 5" / "AG 5" / "AG;5" / "AG\t5"
-            sigla_match = re.findall(r'\b([A-Z]{2})\s*[:;\t,\s]\s*(\d+)', line)
-            for match in sigla_match:
-                sigla_raw = match[0].strip().upper()
-                num_str = match[1]
+            # Prova sigla 2 lettere + separatore + numero
+            m = re.match(r'^([A-Z]{2})\s*[:;\t,\s\-|]+\s*(\d+)', line)
+            if m:
+                sigla_raw = m.group(1).upper()
                 if sigla_raw in PROVINCE_DATA:
                     _, nome = PROVINCE_DATA[sigla_raw]
-                    scuole_dict[nome] = int(num_str)
-
-            # --- Approccio 2: nome provincia + numero ---
-            # Es: "Agrigento: 5" / "Agrigento 5" / "Agrigento - 5"
-            if ':' in line or '\t' in line or ';' in line:
-                parts = re.split(r'[:\t;]', line, maxsplit=1)
-                prov_part = parts[1] if len(parts) > 1 else parts[0]
-            else:
-                prov_part = line
-
-            name_matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
-            for match in name_matches:
-                prov_raw = match[0].strip().strip(',').strip(':').strip('-').strip()
-                num_str = match[1]
+                    scuole_dict[nome] = int(m.group(2))
+                    continue
+            # Prova nome provincia + numero
+            m = re.match(r'^([a-zA-ZÀ-ÿ\'\-\.\s]{3,}?)\s*[:;\t,\s\-|]+\s*(\d+)', line)
+            if m:
+                prov_raw = m.group(1).strip()
                 sigla = to_sigla(prov_raw)
                 if sigla:
                     _, nome = PROVINCE_DATA[sigla]
-                    scuole_dict[nome] = int(num_str)
+                    scuole_dict[nome] = int(m.group(2))
+                    continue
 
-        # --- Approccio 3: se non trovato, prova formato CSV ---
+        logger.info(f"Strategy 1 (riga-per-riga sigla/nome): {len(scuole_dict)} province.")
+
+        # ================================================================
+        # STRATEGY 2: CSV con tutte le combinazioni di colonne
+        # ================================================================
         if not scuole_dict:
-            logger.warning(f"Parsing testuale fallito per ({tipo}). Provo formato CSV...")
+            logger.info("Strategy 1 fallita. Provo formato CSV...")
             for sep in [';', ',', '\t', '|']:
                 try:
                     csv_io = io.StringIO(text)
+                    # Prova prima con header
                     df_temp = pd.read_csv(csv_io, sep=sep, dtype=str, skipinitialspace=True)
-                    if len(df_temp.columns) >= 2:
-                        logger.info(f"CSV ({tipo}) parsato con sep='{sep}': colonne={list(df_temp.columns)}")
+                    if len(df_temp.columns) >= 2 and len(df_temp) > 0:
+                        logger.info(f"CSV (sep='{sep}', con header): {len(df_temp)} righe. Colonne: {list(df_temp.columns)}")
+                        for idx in range(min(5, len(df_temp))):
+                            logger.info(f"  Row {idx}: {list(df_temp.iloc[idx].values)}")
+                        # Cerca colonna provincia e colonna numero
                         prov_col = None
                         num_col = None
                         for col in df_temp.columns:
@@ -357,49 +362,91 @@ def get_scuole_dict(repo, is_musical=False):
                                 prov_col = prov_col or col
                             if any(k in col_upper for k in ['NUMERO', 'SCUOLE', 'TOTALE', 'N.', 'N ', 'COUNT', 'QUANTITA']):
                                 num_col = num_col or col
-                        if not prov_col:
-                            prov_col = df_temp.columns[0]
-                        if not num_col:
-                            num_col = df_temp.columns[1]
-                        logger.info(f"CSV ({tipo}) - prov_col='{prov_col}', num_col='{num_col}'")
-                        for _, row in df_temp.iterrows():
-                            prov_val = str(row[prov_col]).strip()
-                            num_val = str(row[num_col]).strip()
-                            sigla = to_sigla(prov_val)
-                            if sigla:
-                                _, nome = PROVINCE_DATA[sigla]
-                                match_num = re.search(r'(\d+)', num_val)
-                                if match_num:
-                                    scuole_dict[nome] = int(match_num.group(1))
+                        if prov_col and num_col:
+                            for _, row in df_temp.iterrows():
+                                prov_val = str(row[prov_col]).strip()
+                                num_val = str(row[num_col]).strip()
+                                sigla = to_sigla(prov_val)
+                                if sigla:
+                                    _, nome = PROVINCE_DATA[sigla]
+                                    match_num = re.search(r'(\d+)', num_val)
+                                    if match_num:
+                                        scuole_dict[nome] = int(match_num.group(1))
+                            logger.info(f"CSV header: prov_col='{prov_col}', num_col='{num_col}' -> {len(scuole_dict)} province")
+                        if not scuole_dict:
+                            # Prova senza header
+                            csv_io2 = io.StringIO(text)
+                            df_temp2 = pd.read_csv(csv_io2, sep=sep, dtype=str, skipinitialspace=True, header=None)
+                            if len(df_temp2.columns) >= 2 and len(df_temp2) > 0:
+                                logger.info(f"CSV (sep='{sep}', senza header): {len(df_temp2)} righe, {len(df_temp2.columns)} colonne")
+                                for idx in range(min(5, len(df_temp2))):
+                                    logger.info(f"  Row {idx}: {list(df_temp2.iloc[idx].values)}")
+                                # Prova tutte le coppie di colonne
+                                best_dict = {}
+                                for ci in range(len(df_temp2.columns)):
+                                    for ni in range(len(df_temp2.columns)):
+                                        if ci == ni:
+                                            continue
+                                        temp_dict = {}
+                                        for _, row in df_temp2.iterrows():
+                                            prov_val = str(row.iloc[ci]).strip()
+                                            num_val = str(row.iloc[ni]).strip()
+                                            sigla = to_sigla(prov_val)
+                                            if sigla:
+                                                match_num = re.search(r'(\d+)', num_val)
+                                                if match_num:
+                                                    _, nome = PROVINCE_DATA[sigla]
+                                                    temp_dict[nome] = int(match_num.group(1))
+                                        if len(temp_dict) > len(best_dict):
+                                            best_dict = temp_dict
+                                            logger.info(f"  CSV col{ci}+col{ni}: {len(best_dict)} province")
+                                scuole_dict = best_dict
                         if scuole_dict:
-                            logger.info(f"CSV ({tipo}) trovato {len(scuole_dict)} province.")
                             break
                 except Exception as e:
-                    logger.debug(f"Tentativo CSV sep='{sep}' fallito: {e}")
+                    logger.debug(f"CSV sep='{sep}' fallito: {e}")
                     continue
 
-        # --- Approccio 4: se ancora niente, prova regex generica su tutto il testo ---
+        # ================================================================
+        # STRATEGY 3: Regex generica su tutto il testo
+        # Cerca SIGLA+numero ovunque nel testo
+        # ================================================================
         if not scuole_dict:
-            logger.warning(f"CSV fallito per ({tipo}). Provo regex generica su tutto il testo...")
-            all_matches = re.findall(r'([A-Za-zÀ-ÿ\'\-\.\s]{3,})\s*[:;\t,\s]\s*(\d{1,4})', text)
-            for match in all_matches:
-                prov_raw = match[0].strip().strip(',').strip(':').strip('-').strip()
-                num_str = match[1]
-                if len(prov_raw) <= 3 and prov_raw.upper() in PROVINCE_DATA:
-                    _, nome = PROVINCE_DATA[prov_raw.upper()]
+            logger.info("Strategy 2 fallita. Provo regex generica su tutto il testo...")
+            # Cerca sigle 2 lettere seguite da numero
+            all_matches = re.findall(r'\b([A-Z]{2})\b[\s:;\t,\-|]+(\d+)', text)
+            logger.info(f"Regex sigla+numero: trovati {len(all_matches)} match: {all_matches[:10]}...")
+            for sigla_raw, num_str in all_matches:
+                sigla_raw = sigla_raw.upper()
+                if sigla_raw in PROVINCE_DATA:
+                    _, nome = PROVINCE_DATA[sigla_raw]
                     scuole_dict[nome] = int(num_str)
-                else:
-                    sigla = to_sigla(prov_raw)
+
+            # Se ancora niente, cerca nomi provincia + numero
+            if not scuole_dict:
+                all_matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]{4,})\s*[:;\t,\-|]\s*(\d+)', text)
+                logger.info(f"Regex nome+numero: trovati {len(all_matches)} match: {all_matches[:5]}...")
+                for prov_raw, num_str in all_matches:
+                    sigla = to_sigla(prov_raw.strip())
                     if sigla:
                         _, nome = PROVINCE_DATA[sigla]
                         scuole_dict[nome] = int(num_str)
 
+        # ================================================================
+        # RISULTATO FINALE
+        # ================================================================
         if not scuole_dict:
-            logger.error(f"ATTENZIONE: Nessun dato trovato nel file .txt delle scuole ({tipo})! Uso fallback a 0.")
+            logger.error(f"!!! NESSUN DATO TROVATO nel file ({tipo}) !!!")
+            logger.error(f"Contenuto file (primi 1000 caratteri):")
+            logger.error(text[:1000])
             result_dict = SCUOLE_FALLBACK
         else:
-            logger.info(f"Dizionario scuole {tipo} caricato: {len(scuole_dict)} province trovate.")
+            logger.info(f"Dizionario scuole {tipo} caricato: {len(scuole_dict)} province.")
+            # Log primi 5 valori
+            for i, (nome, num) in enumerate(list(scuole_dict.items())[:5]):
+                logger.info(f"  {nome}: {num}")
             result_dict = scuole_dict
+
         if is_musical:
             _SCUOLE_MUSICALI_CACHE = result_dict
             return _SCUOLE_MUSICALI_CACHE
