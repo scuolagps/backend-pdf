@@ -42,7 +42,7 @@ if not g:
     logger.error("ATTENZIONE: GITHUB_TOKEN non trovato nelle variabili d'ambiente!")
 
 MAX_CLASSI = 20
-MAX_ROWS_PDF = 500
+MAX_ROWS_PDF = 100000
 
 PROVINCE_DATA = {
     "AG": ("Sicilia", "Agrigento"), "AL": ("Piemonte", "Alessandria"), "AN": ("Marche", "Ancona"),
