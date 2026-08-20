@@ -204,22 +204,28 @@ SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
 # NOME_TO_SIGLA e to_sigla a livello modulo
 # ========================================================================
 NOME_TO_SIGLA = {}
+# Set di nomi regione normalizzati (per evitare match falsi)
+REGIONI_NORM = set()
 for sigla, (region, nome) in PROVINCE_DATA.items():
-    norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
-    # Rimuovi accenti dalle chiavi
-    norm = norm.replace('À', 'A').replace('È', 'E').replace('Ì', 'I').replace('Ò', 'O').replace('Ù', 'U')
-    NOME_TO_SIGLA[norm] = sigla
+    region_norm = region.upper().replace(" ", "").replace("-", "").replace("'", "").replace(".", "")
+    region_norm = region_norm.replace('À', 'A').replace('È', 'E').replace('Ì', 'I').replace('Ò', 'O').replace('Ù', 'U')
+    REGIONI_NORM.add(region_norm)
 
 def to_sigla(val):
     """Converte un nome provincia o sigla nella sigla standard a 2 lettere."""
     if pd.isna(val):
         return None
     v = str(val).strip().upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
-    # Rimuovi accenti (es. FORLÌ -> FORLI)
+    # Rimuovi accenti
     v = v.replace('À', 'A').replace('Á', 'A').replace('È', 'E').replace('É', 'E')
     v = v.replace('Ì', 'I').replace('Í', 'I').replace('Ò', 'O').replace('Ó', 'O')
     v = v.replace('Ù', 'U').replace('Ú', 'U').replace('Ü', 'U')
-    # Controlla sigle alternative vecchie
+
+    # Se il valore E' esattamente un nome regione, non e' una provincia
+    if v in REGIONI_NORM:
+        return None
+
+    # Sigle alternative vecchie
     if v in SIGLE_ALT:
         return SIGLE_ALT[v]
     # Match diretto sigla (es. "RM")
@@ -228,13 +234,24 @@ def to_sigla(val):
     # Match diretto nome (es. "ROMA")
     if v in NOME_TO_SIGLA:
         return NOME_TO_SIGLA[v]
-    # Match parziale: usa il nome piu lungo trovato (es. "RAVENNA" batte "ENNA")
+
+    # Match parziale: cerca il nome provincia piu lungo trovato
+    # MA salta se il nome provincia e' contenuto in un nome regione
+    # che e' anch'esso contenuto nel valore (es. "ROMA" in "EMILIAROMAGNA")
     best_match = None
     best_len = 0
     for nome, sigla in NOME_TO_SIGLA.items():
         if nome in v and len(nome) > best_len:
-            best_match = sigla
-            best_len = len(nome)
+            # Controlla se questo match e' un falso positivo
+            # (il nome provincia e' parte di un nome regione nel valore)
+            is_inside_region = False
+            for region_norm in REGIONI_NORM:
+                if nome in region_norm and region_norm in v:
+                    is_inside_region = True
+                    break
+            if not is_inside_region:
+                best_match = sigla
+                best_len = len(nome)
     return best_match
 # ========================================================================
 
