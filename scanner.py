@@ -281,6 +281,15 @@ def pulisci_punteggio(valore):
         return float(match.group(1))
     return None
 
+def parse_score(s):
+    """Converte un punteggio stringa in float, gestendo 'N/D'"""
+    if s == "N/D" or s is None:
+        return None
+    try:
+        return float(str(s).replace(',', '.'))
+    except (ValueError, TypeError):
+        return None
+
 def clean_csv_text(raw_text):
     text = raw_text.replace('\ufeff', '')
     text = re.sub(r'^\d+\s*\|\s*', '', text, flags=re.MULTILINE)
@@ -472,6 +481,7 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     stats_data = {}
+    province_scores = {}  # Traccia TUTTI i punteggi per provincia (per mediana corretta combinata)
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
@@ -735,6 +745,11 @@ def genera_pdf():
                             prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
                             prov_df = prov_df.dropna(subset=['punteggio_num'])
                             if not prov_df.empty:
+                                # Raccogli TUTTI i punteggi per provincia (per mediana finale combinata)
+                                if nome_esteso not in province_scores:
+                                    province_scores[nome_esteso] = []
+                                province_scores[nome_esteso].extend(prov_df['punteggio_num'].tolist())
+
                                 idx_max = prov_df['punteggio_num'].idxmax()
                                 idx_min = prov_df['punteggio_num'].idxmin()
                                 max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
@@ -752,9 +767,22 @@ def genera_pdf():
                         else:
                             stats_data[nome_esteso]["candidati"] += num_candidati
                             stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
-                            if top_candidate != "N/D": stats_data[nome_esteso]["top"] = top_candidate
-                            if bottom_candidate != "N/D": stats_data[nome_esteso]["bottom"] = bottom_candidate
-                            if median_score > 0: stats_data[nome_esteso]["median"] = median_score
+
+                            # FIX: TOP = MASSIMO in assoluto tra I e II Fascia (mantiene I Fascia se più alto)
+                            if top_candidate != "N/D":
+                                existing_top = parse_score(stats_data[nome_esteso]["top"])
+                                new_top = parse_score(top_candidate)
+                                if existing_top is None or (new_top is not None and new_top > existing_top):
+                                    stats_data[nome_esteso]["top"] = top_candidate
+
+                            # FIX: BOTTOM = MINIMO in assoluto tra I e II Fascia (mantiene II Fascia se più basso)
+                            if bottom_candidate != "N/D":
+                                existing_bottom = parse_score(stats_data[nome_esteso]["bottom"])
+                                new_bottom = parse_score(bottom_candidate)
+                                if existing_bottom is None or (new_bottom is not None and new_bottom < existing_bottom):
+                                    stats_data[nome_esteso]["bottom"] = bottom_candidate
+
+                            # MEDIANA: non aggiornare qui, verrà ricalcolata a fine loop da province_scores
 
                 pdf.set_font("Helvetica", 'B', 12)
                 pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -906,6 +934,20 @@ def genera_pdf():
             pdf.set_font("Helvetica", 'I', 10)
             pdf.cell(0, 10, text=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(5)
+
+    # ========================================================================
+    # RICALCOLO MEDIANA CORRETTA da tutti i punteggi raccolti per provincia
+    # Combina candidati di I e II Fascia invece di prendere solo l'ultima fascia
+    # ========================================================================
+    import statistics
+    for prov, scores in province_scores.items():
+        if prov in stats_data and scores:
+            try:
+                stats_data[prov]["median"] = float(statistics.median(scores))
+            except statistics.StatisticsError:
+                pass
+        elif prov in stats_data:
+            stats_data[prov]["median"] = 0.0
 
     if not trovato_almeno_uno:
         pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
