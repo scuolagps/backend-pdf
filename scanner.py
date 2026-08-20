@@ -480,6 +480,19 @@ def genera_pdf():
 
     dizionario_scuole_altro = SCUOLE_FALLBACK
 
+        logger.info(f"Regioni richieste: {regioni_richieste}")
+    logger.info(f"Province nomi ricevute: {province_nomi}")
+    
+    province_sigle = []
+    for prov in province_nomi:
+        sigla = PROVINCE_SIGLE.get(prov)
+        if sigla:
+            province_sigle.append(sigla)
+        else:
+            logger.warning(f"Provincia '{prov}' NON trovata in PROVINCE_SIGLE! Chiavi disponibili: {[k for k in list(PROVINCE_SIGLE.keys())[:10]]}...")
+    
+    logger.info(f"Province sigle finali: {province_sigle}")
+
     for codice in codici_validi:
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
@@ -621,14 +634,26 @@ def genera_pdf():
 
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
+                
+                logger.info(f"[{codice_upper}] Province selezionate: {province_sigle} | Colonna ufficio: {col_ufficio}")
+                
                 if col_ufficio:
                     df['_sigla_prov'] = df[col_ufficio].apply(to_sigla)
+                    prima_prov = len(df)
                     df = df.dropna(subset=['_sigla_prov'])
+                    dopo_dropna = len(df)
+                    logger.info(f"[{codice_upper}] After to_sigla+dropna: {prima_prov} -> {dopo_dropna} | Sigle uniche: {df['_sigla_prov'].nunique()}")
+                    
                     if province_sigle:
                         df = df[df['_sigla_prov'].isin(province_sigle)]
+                        logger.info(f"[{codice_upper}] After province filter {province_sigle}: {len(df)} righe rimaste")
+                    else:
+                        logger.warning(f"[{codice_upper}] NESSUNA provincia selezionata - filtro provincia NON applicato!")
+                    
                     df[col_ufficio] = df['_sigla_prov']
                     df = df.drop(columns=['_sigla_prov'])
                 else:
+                    logger.warning(f"[{codice_upper}] Colonna UFFICIO/PROVINCIA non trovata! Colonne: {list(df.columns)}")
                     df = pd.DataFrame()
                 if col_cognome and not df.empty:
                     df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
