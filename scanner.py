@@ -89,33 +89,42 @@ SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A076", "A077", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AM56", "AM70", "AM71", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55", "A-01", "A-12", "A-23", "A-28", "A-30", "A-48", "A-60", "AA22", "AB22", "AC22", "AD22", "AE22", "IRC"}
 
 # Musicali Sec. I grado (codici 56) - valgono sia per I che II Fascia
-# NOTA: i codici 55 (AA55, AB55, ...) si riferiscono alla Sec. II grado, NON Sec. I
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 
 # ========================================================================
+# Nomi degli strumenti per le classi musicali Sec. I grado
+# ========================================================================
+SEC_I_MUSICAL_NAMES = {
+    "AA56": "Arpa",
+    "AB56": "Chitarra",
+    "AC56": "Clarinetto",
+    "AD56": "Contrabbasso",
+    "AE56": "Fagotto",
+    "AF56": "Flauto",
+    "AG56": "Oboe",
+    "AH56": "Pianoforte",
+    "AI56": "Sassofono",
+    "AJ56": "Tromba",
+    "AK56": "Trombone",
+    "AL56": "Viola",
+    "AM56": "Violino",
+    "AN56": "Violoncello"
+}
+
+# ========================================================================
 # Cartelle specifiche per estrazioni Scuola Secondaria I grado
-# - I Fascia  -> Estrazione_MM_1_Fascia/
-# - II Fascia -> Estrazione_MM_2_Fascia/
-# Le classi di concorso sono le STESSE per I e II Fascia (cambia solo il file)
 # ========================================================================
 ESTRAZIONE_I_FASCIA_FOLDER = "Estrazione_MM_1_Fascia"
 ESTRAZIONE_I_FASCIA_PREFIX = ESTRAZIONE_I_FASCIA_FOLDER + "/"
 ESTRAZIONE_II_FASCIA_FOLDER = "Estrazione_MM_2_Fascia"
 ESTRAZIONE_II_FASCIA_PREFIX = ESTRAZIONE_II_FASCIA_FOLDER + "/"
 
-# ========================================================================
-# Mappatura sigle vecchie -> nuove
-# ========================================================================
 SIGLE_ALT = {
     "PS": "PU",
     "FO": "FC",
 }
 
-# ========================================================================
-# Mappatura codice classe -> file CSV per numero scuole
-# ========================================================================
 SEC_I_CSV_FILE_MAP = {
-    # Codici vecchio formato
     "A011": "A-01 (Arte e Immagine).csv",
     "A019": "A-12 (Lettere).csv",
     "A020": "A-12 (Lettere).csv",
@@ -129,7 +138,6 @@ SEC_I_CSV_FILE_MAP = {
     "A014": "A-60 (Tecnologia).csv",
     "A028": "A-28 (Matematica e Scienze).csv",
     "A060": "A-60 (Tecnologia).csv",
-    # Codici nuovo formato
     "A-01": "A-01 (Arte e Immagine).csv",
     "A-12": "A-12 (Lettere).csv",
     "AA22": "A-22 (AA22 Francese).csv",
@@ -142,7 +150,6 @@ SEC_I_CSV_FILE_MAP = {
     "A-30": "A-30 (Musica).csv",
     "A-48": "A-48 (Scienze Motorie).csv",
     "A-60": "A-60 (Tecnologia).csv",
-    # Codici formato AM/GPS
     "AM01": "A-01 (Arte e Immagine).csv",
     "AM12": "A-12 (Lettere).csv",
     "AM2A": "A-22 (AA22 Francese).csv",
@@ -152,55 +159,40 @@ SEC_I_CSV_FILE_MAP = {
     "AM2E": "A-22 (AE22 Sloveno).csv",
     "AM30": "A-30 (Musica).csv",
     "AM48": "A-48 (Scienze Motorie).csv",
-    # IRC
     "IRC": "IRC (Religione Cattolica).csv",
 }
 
-# ========================================================================
-# Mappatura completa codici equivalenti per ricerca file di estrazione
-# ========================================================================
 CODICI_EQUIVALENTI = {
-    # Arte e immagine: file = AM01
     "A011": {"A011", "A-01", "AM01"},
     "A-01": {"A011", "A-01", "AM01"},
     "AM01": {"A011", "A-01", "AM01"},
-    # Lettere/Italiano: file = AM12
     "A019": {"A019", "A020", "A-12", "AM12"},
     "A020": {"A019", "A020", "A-12", "AM12"},
     "A-12": {"A019", "A020", "A-12", "AM12"},
     "AM12": {"A019", "A020", "A-12", "AM12"},
-    # Francese: file = AM2A
     "A016": {"A016", "AA22", "AM2A"},
     "AA22": {"A016", "AA22", "AM2A"},
     "AM2A": {"A016", "AA22", "AM2A"},
-    # Inglese: file = AM2B
     "A018": {"A018", "AB22", "AM2B"},
     "AB22": {"A018", "AB22", "AM2B"},
     "AM2B": {"A018", "AB22", "AM2B"},
-    # Spagnolo: file = AM2C
     "A023": {"A023", "AC22", "AM2C"},
     "AC22": {"A023", "AC22", "AM2C"},
     "AM2C": {"A023", "AC22", "AM2C"},
-    # Tedesco: file = AM2D
     "A024": {"A024", "AD22", "AM2D"},
     "AD22": {"A024", "AD22", "AM2D"},
     "AM2D": {"A024", "AD22", "AM2D"},
-    # Sloveno: file = AM2E
     "AE22": {"AE22", "AM2E"},
     "AM2E": {"AE22", "AM2E"},
-    # Musica: file = AM30
     "A013": {"A013", "A-30", "AM30"},
     "A-30": {"A013", "A-30", "AM30"},
     "AM30": {"A013", "A-30", "AM30"},
-    # Scienze Motorie: file = AM48
     "A015": {"A015", "A-48", "AM48"},
     "A-48": {"A015", "A-48", "AM48"},
     "AM48": {"A015", "A-48", "AM48"},
-    # Matematica e Scienze: file = A028
     "A021": {"A021", "A-28", "A028"},
     "A-28": {"A021", "A-28", "A028"},
     "A028": {"A021", "A-28", "A028"},
-    # Tecnologia: file = A060
     "A014": {"A014", "A-60", "A060"},
     "A-60": {"A014", "A-60", "A060"},
     "A060": {"A014", "A-60", "A060"},
@@ -212,9 +204,6 @@ _SCUOLE_MUSICALI_CACHE = None
 SCUOLE_REGOLARI_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
 SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
 
-# ========================================================================
-# NOME_TO_SIGLA e to_sigla a livello modulo
-# ========================================================================
 NOME_TO_SIGLA = {}
 REGIONI_NORM = set()
 for sigla, (region, nome) in PROVINCE_DATA.items():
@@ -223,24 +212,20 @@ for sigla, (region, nome) in PROVINCE_DATA.items():
     REGIONI_NORM.add(region_norm)
 
 def to_sigla(val):
-    """Converte un nome provincia o sigla nella sigla standard a 2 lettere."""
     if pd.isna(val):
         return None
     v = str(val).strip().upper().replace(" ", "").replace("'", "").replace("-", "").replace(".", "")
     v = v.replace('À', 'A').replace('Á', 'A').replace('È', 'E').replace('É', 'E')
     v = v.replace('Ì', 'I').replace('Í', 'I').replace('Ò', 'O').replace('Ó', 'O')
     v = v.replace('Ù', 'U').replace('Ú', 'U').replace('Ü', 'U')
-
     if v in REGIONI_NORM:
         return None
-
     if v in SIGLE_ALT:
         return SIGLE_ALT[v]
     if v in PROVINCE_DATA:
         return v
     if v in NOME_TO_SIGLA:
         return NOME_TO_SIGLA[v]
-
     best_match = None
     best_len = 0
     for nome, sigla in NOME_TO_SIGLA.items():
@@ -254,7 +239,6 @@ def to_sigla(val):
                 best_match = sigla
                 best_len = len(nome)
     return best_match
-# ========================================================================
 
 def sanitize_for_fpdf(text):
     if not isinstance(text, str):
@@ -282,7 +266,6 @@ def pulisci_punteggio(valore):
     return None
 
 def parse_score(s):
-    """Converte un punteggio stringa in float, gestendo 'N/D'"""
     if s == "N/D" or s is None:
         return None
     try:
@@ -308,28 +291,111 @@ def get_scuole_dict(repo, is_musical=False):
         file_path = SCUOLE_REGOLARI_PATH
         tipo = "Regolari (MM)"
     try:
-        logger.info(f"Lettura file scuole ({tipo}) tramite API GitHub...")
+        logger.info(f"Lettura file scuole ({tipo}) tramite API GitHub: {file_path}")
         file_content = repo.get_contents(file_path)
         text = file_content.decoded_content.decode('utf-8', errors='ignore')
+
+        # ====================================================================
+        # DEBUG: stampa le prime 10 righe per capire il formato del file
+        # ====================================================================
+        lines_all = text.splitlines()
+        logger.info(f"File ({tipo}) ha {len(lines_all)} righe totali. Prime 10 righe:")
+        for i, line in enumerate(lines_all[:10]):
+            logger.info(f"  Riga {i}: [{line}]")
+
         scuole_dict = {}
-        for line in text.splitlines():
+
+        # ====================================================================
+        # PARSING FLESSIBILE - prova molteplici formati
+        # ====================================================================
+        for line in lines_all:
             line = line.strip()
             if not line:
                 continue
-            parts = line.split(':')
-            if len(parts) < 2:
-                continue
-            prov_part = parts[1]
-            matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
-            for match in matches:
-                prov_raw = match[0].strip().strip(',')
+
+            # --- Approccio 1: riga con sigla provincia e numero ---
+            # Es: "AG: 5" / "AG 5" / "AG;5" / "AG\t5"
+            sigla_match = re.findall(r'\b([A-Z]{2})\s*[:;\t,\s]\s*(\d+)', line)
+            for match in sigla_match:
+                sigla_raw = match[0].strip().upper()
+                num_str = match[1]
+                if sigla_raw in PROVINCE_DATA:
+                    _, nome = PROVINCE_DATA[sigla_raw]
+                    scuole_dict[nome] = int(num_str)
+
+            # --- Approccio 2: nome provincia + numero ---
+            # Es: "Agrigento: 5" / "Agrigento 5" / "Agrigento - 5"
+            if ':' in line or '\t' in line or ';' in line:
+                parts = re.split(r'[:\t;]', line, maxsplit=1)
+                prov_part = parts[1] if len(parts) > 1 else parts[0]
+            else:
+                prov_part = line
+
+            name_matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
+            for match in name_matches:
+                prov_raw = match[0].strip().strip(',').strip(':').strip('-').strip()
                 num_str = match[1]
                 sigla = to_sigla(prov_raw)
                 if sigla:
                     _, nome = PROVINCE_DATA[sigla]
                     scuole_dict[nome] = int(num_str)
+
+        # --- Approccio 3: se non trovato, prova formato CSV ---
         if not scuole_dict:
-            logger.warning(f"Nessun dato trovato nel file .txt delle scuole ({tipo}). Uso fallback a 0.")
+            logger.warning(f"Parsing testuale fallito per ({tipo}). Provo formato CSV...")
+            for sep in [';', ',', '\t', '|']:
+                try:
+                    csv_io = io.StringIO(text)
+                    df_temp = pd.read_csv(csv_io, sep=sep, dtype=str, skipinitialspace=True)
+                    if len(df_temp.columns) >= 2:
+                        logger.info(f"CSV ({tipo}) parsato con sep='{sep}': colonne={list(df_temp.columns)}")
+                        prov_col = None
+                        num_col = None
+                        for col in df_temp.columns:
+                            col_upper = str(col).upper().strip()
+                            if any(k in col_upper for k in ['PROVINC', 'UFFICIO', 'SEDE', 'COMUNE', 'TERRITORIO', 'SIGLA']):
+                                prov_col = prov_col or col
+                            if any(k in col_upper for k in ['NUMERO', 'SCUOLE', 'TOTALE', 'N.', 'N ', 'COUNT', 'QUANTITA']):
+                                num_col = num_col or col
+                        if not prov_col:
+                            prov_col = df_temp.columns[0]
+                        if not num_col:
+                            num_col = df_temp.columns[1]
+                        logger.info(f"CSV ({tipo}) - prov_col='{prov_col}', num_col='{num_col}'")
+                        for _, row in df_temp.iterrows():
+                            prov_val = str(row[prov_col]).strip()
+                            num_val = str(row[num_col]).strip()
+                            sigla = to_sigla(prov_val)
+                            if sigla:
+                                _, nome = PROVINCE_DATA[sigla]
+                                match_num = re.search(r'(\d+)', num_val)
+                                if match_num:
+                                    scuole_dict[nome] = int(match_num.group(1))
+                        if scuole_dict:
+                            logger.info(f"CSV ({tipo}) trovato {len(scuole_dict)} province.")
+                            break
+                except Exception as e:
+                    logger.debug(f"Tentativo CSV sep='{sep}' fallito: {e}")
+                    continue
+
+        # --- Approccio 4: se ancora niente, prova regex generica su tutto il testo ---
+        if not scuole_dict:
+            logger.warning(f"CSV fallito per ({tipo}). Provo regex generica su tutto il testo...")
+            all_matches = re.findall(r'([A-Za-zÀ-ÿ\'\-\.\s]{3,})\s*[:;\t,\s]\s*(\d{1,4})', text)
+            for match in all_matches:
+                prov_raw = match[0].strip().strip(',').strip(':').strip('-').strip()
+                num_str = match[1]
+                if len(prov_raw) <= 3 and prov_raw.upper() in PROVINCE_DATA:
+                    _, nome = PROVINCE_DATA[prov_raw.upper()]
+                    scuole_dict[nome] = int(num_str)
+                else:
+                    sigla = to_sigla(prov_raw)
+                    if sigla:
+                        _, nome = PROVINCE_DATA[sigla]
+                        scuole_dict[nome] = int(num_str)
+
+        if not scuole_dict:
+            logger.error(f"ATTENZIONE: Nessun dato trovato nel file .txt delle scuole ({tipo})! Uso fallback a 0.")
             result_dict = SCUOLE_FALLBACK
         else:
             logger.info(f"Dizionario scuole {tipo} caricato: {len(scuole_dict)} province trovate.")
@@ -341,7 +407,7 @@ def get_scuole_dict(repo, is_musical=False):
             _SCUOLE_REGOLARE_CACHE = result_dict
             return _SCUOLE_REGOLARE_CACHE
     except Exception as e:
-        logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}")
+        logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}", exc_info=True)
         return SCUOLE_FALLBACK
 
 def get_scuole_dict_from_csv(repo, codice):
@@ -481,7 +547,7 @@ def genera_pdf():
 
     trovato_almeno_uno = False
     stats_data = {}
-    province_scores = {}  # Traccia TUTTI i punteggi per provincia (per mediana corretta combinata)
+    province_scores = {}
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
@@ -500,7 +566,7 @@ def genera_pdf():
         if sigla:
             province_sigle.append(sigla)
         else:
-            logger.warning(f"Provincia '{prov}' NON trovata in PROVINCE_SIGLE! Chiavi disponibili: {[k for k in list(PROVINCE_SIGLE.keys())[:10]]}...")
+            logger.warning(f"Provincia '{prov}' NON trovata in PROVINCE_SIGLE!")
     
     logger.info(f"Province sigle finali: {province_sigle}")
 
@@ -508,18 +574,11 @@ def genera_pdf():
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
 
-        # ====================================================================
-        # Calcola tutti i codici equivalenti (vecchio, nuovo, formato AM)
-        # ====================================================================
         codici_ricerca = CODICI_EQUIVALENTI.get(codice_upper, {codice_upper})
         logger.info(f"[{codice_upper}] Codici ricerca: {codici_ricerca}")
 
         # ====================================================================
         # Logica selezione file numero scuole
-        # Le classi di concorso sono le STESSE per I e II Fascia (Sec. I grado)
-        # - ADMM -> Scuole_Statali_Totali_MM.txt
-        # - Musicali (AA56, AB56, ...) -> Riepilogo_Scuole_Musicali.txt
-        # - Altre classi -> file CSV specifico (es. A-12 (Lettere).csv)
         # ====================================================================
         if codice_upper == "ADMM":
             scuole_dict = get_scuole_dict(repo, is_musical=False)
@@ -540,10 +599,6 @@ def genera_pdf():
 
         # ====================================================================
         # Selezione cartella di ricerca file estrazione per Sec. I grado
-        # - I Fascia  -> SOLO cartella Estrazione_MM_1_Fascia/
-        # - II Fascia -> SOLO cartella Estrazione_MM_2_Fascia/
-        # - Tutte le fasce -> entrambe le cartelle (I + II Fascia)
-        # Per altri ordini scuola: root ESCLUDENDO le due sottocartelle
         # ====================================================================
         is_sec_i_codice = (codice_upper in SEC_I_CLASSI or
                            codice_upper in SEC_I_MUSICAL_CLASSI or
@@ -558,30 +613,26 @@ def genera_pdf():
                                  fascia_upper == "IIFASCIA")
 
         if is_sec_i_codice and is_i_fascia_selected:
-            # Sec. I grado + I Fascia: SOLO cartella Estrazione_MM_1_Fascia
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_I_FASCIA_FOLDER}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
         elif is_sec_i_codice and is_ii_fascia_selected:
-            # Sec. I grado + II Fascia: SOLO cartella Estrazione_MM_2_Fascia
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_II_FASCIA_FOLDER}' (Sec I + II Fascia). {len(files_to_search)} candidati.")
         elif is_sec_i_codice and not fascia_richiesta:
-            # Sec. I grado + "Tutte le fasce": entrambe le cartelle
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) or
                                   f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_I_FASCIA_FOLDER}' + '{ESTRAZIONE_II_FASCIA_FOLDER}' (Tutte le fasce). {len(files_to_search)} candidati.")
         else:
-            # Altri ordini scuola: root ESCLUDENDO le due sottocartelle Sec. I
             files_to_search = [f for f in root_files
                                if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and
                                   not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle Sec I). {len(files_to_search)} candidati.")
 
         # ====================================================================
-        # Ricerca file di estrazione con tutti i codici equivalenti
+        # Ricerca file di estrazione
         # ====================================================================
         file_da_elaborare = []
         nomi_file_visti = set()
@@ -611,8 +662,17 @@ def genera_pdf():
             logger.warning(f"Nessun file trovato per il codice: {codice}")
             continue
 
+        # ====================================================================
+        # Intestazione PDF: mostra il nome della classe
+        # Per classi musicali: "AC56 - Clarinetto"
+        # Per altre classi: "A-12" o nome originale
+        # ====================================================================
         pdf.set_font("Helvetica", 'B', 12)
-        pdf.cell(0, 10, text=sanitize_for_fpdf(f"Classe di Concorso: {codice}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        if codice_upper in SEC_I_MUSICAL_NAMES:
+            display_classe = f"Classe di Concorso: {codice} - {SEC_I_MUSICAL_NAMES[codice_upper]}"
+        else:
+            display_classe = f"Classe di Concorso: {codice}"
+        pdf.cell(0, 10, text=sanitize_for_fpdf(display_classe), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
 
         try:
@@ -690,31 +750,19 @@ def genera_pdf():
                 col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
                 col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
                 
-                logger.info(f"[{codice_upper}] Province selezionate: {province_sigle} | Colonna ufficio: {col_ufficio}")
-                
                 if col_ufficio:
                     df['_sigla_prov'] = df[col_ufficio].apply(to_sigla)
-                    prima_prov = len(df)
                     df = df.dropna(subset=['_sigla_prov'])
-                    dopo_dropna = len(df)
-                    logger.info(f"[{codice_upper}] After to_sigla+dropna: {prima_prov} -> {dopo_dropna} | Sigle uniche: {df['_sigla_prov'].nunique()}")
-                    
                     if province_sigle:
                         df = df[df['_sigla_prov'].isin(province_sigle)]
-                        logger.info(f"[{codice_upper}] After province filter {province_sigle}: {len(df)} righe rimaste")
-                    else:
-                        logger.warning(f"[{codice_upper}] NESSUNA provincia selezionata - filtro provincia NON applicato!")
-                    
                     df[col_ufficio] = df['_sigla_prov']
                     df = df.drop(columns=['_sigla_prov'])
                 else:
-                    logger.warning(f"[{codice_upper}] Colonna UFFICIO/PROVINCIA non trovata! Colonne: {list(df.columns)}")
                     df = pd.DataFrame()
                 if col_cognome and not df.empty:
                     df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
                     df = df.dropna(subset=[col_cognome])
                 if df.empty:
-                    logger.info(f"[{codice_upper}] DataFrame vuoto dopo filtri provincia/cognome.")
                     continue
 
                 useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE']
@@ -745,11 +793,9 @@ def genera_pdf():
                             prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
                             prov_df = prov_df.dropna(subset=['punteggio_num'])
                             if not prov_df.empty:
-                                # Raccogli TUTTI i punteggi per provincia (per mediana finale combinata)
                                 if nome_esteso not in province_scores:
                                     province_scores[nome_esteso] = []
                                 province_scores[nome_esteso].extend(prov_df['punteggio_num'].tolist())
-
                                 idx_max = prov_df['punteggio_num'].idxmax()
                                 idx_min = prov_df['punteggio_num'].idxmin()
                                 max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
@@ -767,22 +813,16 @@ def genera_pdf():
                         else:
                             stats_data[nome_esteso]["candidati"] += num_candidati
                             stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
-
-                            # FIX: TOP = MASSIMO in assoluto tra I e II Fascia (mantiene I Fascia se più alto)
                             if top_candidate != "N/D":
                                 existing_top = parse_score(stats_data[nome_esteso]["top"])
                                 new_top = parse_score(top_candidate)
                                 if existing_top is None or (new_top is not None and new_top > existing_top):
                                     stats_data[nome_esteso]["top"] = top_candidate
-
-                            # FIX: BOTTOM = MINIMO in assoluto tra I e II Fascia (mantiene II Fascia se più basso)
                             if bottom_candidate != "N/D":
                                 existing_bottom = parse_score(stats_data[nome_esteso]["bottom"])
                                 new_bottom = parse_score(bottom_candidate)
                                 if existing_bottom is None or (new_bottom is not None and new_bottom < existing_bottom):
                                     stats_data[nome_esteso]["bottom"] = bottom_candidate
-
-                            # MEDIANA: non aggiornare qui, verrà ricalcolata a fine loop da province_scores
 
                 pdf.set_font("Helvetica", 'B', 12)
                 pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -790,7 +830,7 @@ def genera_pdf():
                 if len(df) > MAX_ROWS_PDF:
                     df = df.head(MAX_ROWS_PDF)
                     pdf.set_font("Helvetica", 'I', 8)
-                    pdf.cell(0, 6, text=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record per motivi di spazio."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.cell(0, 6, text=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
                 def is_empty(val):
                     v = str(val).strip().lower()
@@ -937,7 +977,6 @@ def genera_pdf():
 
     # ========================================================================
     # RICALCOLO MEDIANA CORRETTA da tutti i punteggi raccolti per provincia
-    # Combina candidati di I e II Fascia invece di prendere solo l'ultima fascia
     # ========================================================================
     import statistics
     for prov, scores in province_scores.items():
