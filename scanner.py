@@ -480,7 +480,7 @@ def genera_pdf():
 
     dizionario_scuole_altro = SCUOLE_FALLBACK
 
-        logger.info(f"Regioni richieste: {regioni_richieste}")
+    logger.info(f"Regioni richieste: {regioni_richieste}")
     logger.info(f"Province nomi ricevute: {province_nomi}")
     
     province_sigle = []
