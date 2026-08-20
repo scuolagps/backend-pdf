@@ -812,7 +812,9 @@ def genera_pdf():
                 if total_width > 0:
                     scale = page_width / total_width
                     for col in col_widths: col_widths[col] *= scale
-                    total_width_scaled = sum(col_widths.values)
+                    total_width_scaled = sum(col_widths.values())
+                else:
+                    total_width_scaled = 0
                 pdf.set_font("Helvetica", 'B', 9)
                 line_height = 5
                 max_lines = 2
