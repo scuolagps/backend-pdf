@@ -714,7 +714,20 @@ def genera_pdf():
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
 
-        codici_ricerca = CODICI_EQUIVALENTI.get(codice_upper, {codice_upper})
+        # Logica codici ricerca
+        if is_sec_ii:
+            # Per Sec II grado, NON usare CODICI_EQUIVALENTI (che mappano A-01 in A011 per la Sec I).
+            # Usa solo il codice esatto, normalizzato (es. A-01 -> A001)
+            codici_ricerca = {codice_upper}
+            # Se ha il dash (es. A-01), aggiungi la versione senza dash (A01) e normalizzata (A001)
+            if '-' in codice_upper:
+                cod_no_dash = codice_upper.replace('-', '')
+                codici_ricerca.add(cod_no_dash)
+                if re.match(r'^A\d{2}$', cod_no_dash):
+                    codici_ricerca.add('A0' + cod_no_dash[-2:])
+        else:
+            codici_ricerca = CODICI_EQUIVALENTI.get(codice_upper, {codice_upper})
+        
         logger.info(f"[{codice_upper}] Codici ricerca: {codici_ricerca} | Ordine: {ordine_classe}")
 
         # ====================================================================
