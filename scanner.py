@@ -826,13 +826,16 @@ def genera_pdf():
             if f.name.startswith('~$'):
                 continue
             for cod_ric in codici_ricerca:
-                # Rimuove il dash per matchare A-02 con A002, A055 con A055, ecc.
-                cod_ric_no_dash = cod_ric.replace('-', '')
-                # Normalizza A02 -> A002
-                if re.match(r'^A\d{2}$', cod_ric_no_dash):
-                    cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
-
-                prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
+                # Se è Scuola Sec II grado, normalizza il codice rimuovendo il dash (A-01 -> A001)
+                if is_sec_ii:
+                    cod_ric_no_dash = cod_ric.replace('-', '')
+                    if re.match(r'^A\d{2}$', cod_ric_no_dash):
+                        cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
+                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
+                else:
+                    # Per Sec I e Infanzia, usa il codice così com'è (A011, AM55, IRC, ADMM, ecc.)
+                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+                
                 if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti:
                         break
