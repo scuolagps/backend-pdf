@@ -91,26 +91,17 @@ SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", 
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 
 SEC_I_MUSICAL_NAMES = {
-    "AA56": "Arpa",
-    "AB56": "Chitarra",
-    "AC56": "Clarinetto",
-    "AD56": "Contrabbasso",
-    "AE56": "Fagotto",
-    "AF56": "Flauto",
-    "AG56": "Oboe",
-    "AH56": "Pianoforte",
-    "AI56": "Sassofono",
-    "AJ56": "Tromba",
-    "AK56": "Trombone",
-    "AL56": "Viola",
-    "AM56": "Violino",
-    "AN56": "Violoncello"
+    "AA56": "Arpa", "AB56": "Chitarra", "AC56": "Clarinetto", "AD56": "Contrabbasso",
+    "AE56": "Fagotto", "AF56": "Flauto", "AG56": "Oboe", "AH56": "Pianoforte",
+    "AI56": "Sassofono", "AJ56": "Tromba", "AK56": "Trombone", "AL56": "Viola",
+    "AM56": "Violino", "AN56": "Violoncello"
 }
 
 ESTRAZIONE_I_FASCIA_FOLDER = "Estrazione_MM_1_Fascia"
 ESTRAZIONE_I_FASCIA_PREFIX = ESTRAZIONE_I_FASCIA_FOLDER + "/"
 ESTRAZIONE_II_FASCIA_FOLDER = "Estrazione_MM_2_Fascia"
 ESTRAZIONE_II_FASCIA_PREFIX = ESTRAZIONE_II_FASCIA_FOLDER + "/"
+ESTRAZIONE_SS_I_FASCIA_PREFIX = "Estrazione_SS_1_Fascia/"
 
 SIGLE_ALT = {
     "PS": "PU",
@@ -118,77 +109,38 @@ SIGLE_ALT = {
 }
 
 SEC_I_CSV_FILE_MAP = {
-    "A011": "A-01 (Arte e Immagine).csv",
-    "A019": "A-12 (Lettere).csv",
-    "A020": "A-12 (Lettere).csv",
-    "A016": "A-22 (AA22 Francese).csv",
-    "A018": "A-22 (AB22 IngleseAltra Lingua).csv",
-    "A023": "A-22 (AC22 Spagnolo).csv",
-    "A024": "A-22 (AD22 Tedesco).csv",
-    "A021": "A-28 (Matematica e Scienze).csv",
-    "A013": "A-30 (Musica).csv",
-    "A015": "A-48 (Scienze Motorie).csv",
-    "A014": "A-60 (Tecnologia).csv",
-    "A028": "A-28 (Matematica e Scienze).csv",
-    "A060": "A-60 (Tecnologia).csv",
-    "A-01": "A-01 (Arte e Immagine).csv",
-    "A-12": "A-12 (Lettere).csv",
-    "AA22": "A-22 (AA22 Francese).csv",
-    "AB22": "A-22 (AB22 IngleseAltra Lingua).csv",
-    "AC22": "A-22 (AC22 Spagnolo).csv",
-    "AD22": "A-22 (AD22 Tedesco).csv",
-    "AE22": "A-22 (AE22 Sloveno).csv",
-    "A-23": "A-23 (Italiano L2).csv",
-    "A-28": "A-28 (Matematica e Scienze).csv",
-    "A-30": "A-30 (Musica).csv",
-    "A-48": "A-48 (Scienze Motorie).csv",
-    "A-60": "A-60 (Tecnologia).csv",
-    "AM01": "A-01 (Arte e Immagine).csv",
-    "AM12": "A-12 (Lettere).csv",
-    "AM2A": "A-22 (AA22 Francese).csv",
-    "AM2B": "A-22 (AB22 IngleseAltra Lingua).csv",
-    "AM2C": "A-22 (AC22 Spagnolo).csv",
-    "AM2D": "A-22 (AD22 Tedesco).csv",
-    "AM2E": "A-22 (AE22 Sloveno).csv",
-    "AM30": "A-30 (Musica).csv",
-    "AM48": "A-48 (Scienze Motorie).csv",
-    "IRC": "IRC (Religione Cattolica).csv",
+    "A011": "A-01 (Arte e Immagine).csv", "A019": "A-12 (Lettere).csv", "A020": "A-12 (Lettere).csv",
+    "A016": "A-22 (AA22 Francese).csv", "A018": "A-22 (AB22 IngleseAltra Lingua).csv",
+    "A023": "A-22 (AC22 Spagnolo).csv", "A024": "A-22 (AD22 Tedesco).csv",
+    "A021": "A-28 (Matematica e Scienze).csv", "A013": "A-30 (Musica).csv",
+    "A015": "A-48 (Scienze Motorie).csv", "A014": "A-60 (Tecnologia).csv",
+    "A028": "A-28 (Matematica e Scienze).csv", "A060": "A-60 (Tecnologia).csv",
+    "A-01": "A-01 (Arte e Immagine).csv", "A-12": "A-12 (Lettere).csv",
+    "AA22": "A-22 (AA22 Francese).csv", "AB22": "A-22 (AB22 IngleseAltra Lingua).csv",
+    "AC22": "A-22 (AC22 Spagnolo).csv", "AD22": "A-22 (AD22 Tedesco).csv",
+    "AE22": "A-22 (AE22 Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
+    "A-28": "A-28 (Matematica e Scienze).csv", "A-30": "A-30 (Musica).csv",
+    "A-48": "A-48 (Scienze Motorie).csv", "A-60": "A-60 (Tecnologia).csv",
+    "AM01": "A-01 (Arte e Immagine).csv", "AM12": "A-12 (Lettere).csv",
+    "AM2A": "A-22 (AA22 Francese).csv", "AM2B": "A-22 (AB22 IngleseAltra Lingua).csv",
+    "AM2C": "A-22 (AC22 Spagnolo).csv", "AM2D": "A-22 (AD22 Tedesco).csv",
+    "AM2E": "A-22 (AE22 Sloveno).csv", "AM30": "A-30 (Musica).csv",
+    "AM48": "A-48 (Scienze Motorie).csv", "IRC": "IRC (Religione Cattolica).csv",
 }
 
 CODICI_EQUIVALENTI = {
-    "A011": {"A011", "A-01", "AM01"},
-    "A-01": {"A011", "A-01", "AM01"},
-    "AM01": {"A011", "A-01", "AM01"},
-    "A019": {"A019", "A020", "A-12", "AM12"},
-    "A020": {"A019", "A020", "A-12", "AM12"},
-    "A-12": {"A019", "A020", "A-12", "AM12"},
-    "AM12": {"A019", "A020", "A-12", "AM12"},
-    "A016": {"A016", "AA22", "AM2A"},
-    "AA22": {"A016", "AA22", "AM2A"},
-    "AM2A": {"A016", "AA22", "AM2A"},
-    "A018": {"A018", "AB22", "AM2B"},
-    "AB22": {"A018", "AB22", "AM2B"},
-    "AM2B": {"A018", "AB22", "AM2B"},
-    "A023": {"A023", "AC22", "AM2C"},
-    "AC22": {"A023", "AC22", "AM2C"},
-    "AM2C": {"A023", "AC22", "AM2C"},
-    "A024": {"A024", "AD22", "AM2D"},
-    "AD22": {"A024", "AD22", "AM2D"},
-    "AM2D": {"A024", "AD22", "AM2D"},
-    "AE22": {"AE22", "AM2E"},
-    "AM2E": {"AE22", "AM2E"},
-    "A013": {"A013", "A-30", "AM30"},
-    "A-30": {"A013", "A-30", "AM30"},
-    "AM30": {"A013", "A-30", "AM30"},
-    "A015": {"A015", "A-48", "AM48"},
-    "A-48": {"A015", "A-48", "AM48"},
-    "AM48": {"A015", "A-48", "AM48"},
-    "A021": {"A021", "A-28", "A028"},
-    "A-28": {"A021", "A-28", "A028"},
-    "A028": {"A021", "A-28", "A028"},
-    "A014": {"A014", "A-60", "A060"},
-    "A-60": {"A014", "A-60", "A060"},
-    "A060": {"A014", "A-60", "A060"},
+    "A011": {"A011", "A-01", "AM01"}, "A-01": {"A011", "A-01", "AM01"}, "AM01": {"A011", "A-01", "AM01"},
+    "A019": {"A019", "A020", "A-12", "AM12"}, "A020": {"A019", "A020", "A-12", "AM12"},
+    "A-12": {"A019", "A020", "A-12", "AM12"}, "AM12": {"A019", "A020", "A-12", "AM12"},
+    "A016": {"A016", "AA22", "AM2A"}, "AA22": {"A016", "AA22", "AM2A"}, "AM2A": {"A016", "AA22", "AM2A"},
+    "A018": {"A018", "AB22", "AM2B"}, "AB22": {"A018", "AB22", "AM2B"}, "AM2B": {"A018", "AB22", "AM2B"},
+    "A023": {"A023", "AC22", "AM2C"}, "AC22": {"A023", "AC22", "AM2C"}, "AM2C": {"A023", "AC22", "AM2C"},
+    "A024": {"A024", "AD22", "AM2D"}, "AD22": {"A024", "AD22", "AM2D"}, "AM2D": {"A024", "AD22", "AM2D"},
+    "AE22": {"AE22", "AM2E"}, "AM2E": {"AE22", "AM2E"},
+    "A013": {"A013", "A-30", "AM30"}, "A-30": {"A013", "A-30", "AM30"}, "AM30": {"A013", "A-30", "AM30"},
+    "A015": {"A015", "A-48", "AM48"}, "A-48": {"A015", "A-48", "AM48"}, "AM48": {"A015", "A-48", "AM48"},
+    "A021": {"A021", "A-28", "A028"}, "A-28": {"A021", "A-28", "A028"}, "A028": {"A021", "A-28", "A028"},
+    "A014": {"A014", "A-60", "A060"}, "A-60": {"A014", "A-60", "A060"}, "A060": {"A014", "A-60", "A060"},
 }
 
 # ========================================================================
@@ -198,92 +150,52 @@ SEC_II_FOLDER = "Numero scuole II grado"
 SEC_II_PREFIX = SEC_II_FOLDER + "/"
 
 SEC_II_MUSICAL_CLASSI = {
-    "A-55",
-    "AA55", "AB55", "AC55", "AD55", "AE55", "AF55", "AG55", "AH55",
-    "AI55", "AJ55", "AK55", "AL55", "AM55", "AN55",
-    "AO55", "AP55", "AQ55", "AR55", "AS55", "AT55", "AU55", "AW55",
+    "A-55", "AA55", "AB55", "AC55", "AD55", "AE55", "AF55", "AG55", "AH55",
+    "AI55", "AJ55", "AK55", "AL55", "AM55", "AN55", "AO55", "AP55", "AQ55",
+    "AR55", "AS55", "AT55", "AU55", "AV55", "AW55",
 }
 
 SEC_II_CSV_FILE_MAP = {
-    "A-01":      "A-01 (Disegno e storia dell'arte).csv",
-    "A-02":      "A-02 (Design metalli, oreficeria, pietre).csv",
-    "A-05":      "A-05 (Design del tessuto e della moda).csv",
-    "A-07":      "A-07 (Discipline audiovisive).csv",
-    "A-08":      "A-08 (Discipline geometriche, architettura, scenotecnica).csv",
-    "A-09":      "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
-    "A-11":      "A-11 (Lettere e latino).csv",
-    "A-12":      "A-12 (Discipline letterarie).csv",
-    "A-13":      "A-13 (Lettere, latino e greco - Liceo Classico).csv",
-    "A-14":      "A-14 (Discipline plastiche e scultoree).csv",
-    "A-15":      "A-15 (Discipline sanitarie).csv",
-    "A-16":      "A-16 (Modellazione odontotecnica).csv",
-    "A-18":      "A-18 (Filosofia e scienze umane).csv",
-    "A-19":      "A-19 (Filosofia e storia).csv",
-    "A-20":      "A-20 (Fisica).csv",
-    "A-21":      "A-21 (Geografia).csv",
-    "A-22 (AA)": "A-22 (AA - Francese).csv",
-    "A-22 (AB)": "A-22 (AB - IngleseAltra Lingua).csv",
-    "A-22 (AC)": "A-22 (AC - Spagnolo).csv",
-    "A-22 (AD)": "A-22 (AD - Tedesco).csv",
-    "A-22 (AE)": "A-22 (AE - Sloveno).csv",
-    "A-23":      "A-23 (Italiano L2).csv",
-    "A-24":      "A-24 (Lingue e culture dell'Asia orientale e sud-orientale).csv",
-    "A-26":      "A-26 (Matematica).csv",
-    "A-27":      "A-27 (Matematica e fisica).csv",
-    "A-30":      "A-30 (Musica).csv",
-    "A-31":      "A-31 (Scienze degli alimenti).csv",
-    "A-32":      "A-32 (Scienze della geologia e della mineralogia).csv",
-    "A-33":      "A-33 (Scienze e tecnologie aeronautiche).csv",
-    "A-34":      "A-34 (Scienze e tecnologie chimiche).csv",
-    "A-36":      "A-36 (Scienze e tecnologie della logistica).csv",
-    "A-37":      "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
-    "A-38":      "A-38 (Costruzioni aeronautiche).csv",
-    "A-39":      "A-39 (Costruzioni navali).csv",
-    "A-40":      "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv",
-    "A-41":      "A-41 (Scienze e tecnologie informatiche).csv",
-    "A-42":      "A-42 (Scienze e tecnologie meccaniche).csv",
-    "A-43":      "A-43 (Scienze e tecnologie nautiche).csv",
-    "A-44":      "A-44 (Tecnologie tessili, abbigliamento e moda).csv",
-    "A-45":      "A-45 (Scienze economico-aziendali).csv",
-    "A-46":      "A-46 (Scienze giuridico-economiche).csv",
-    "A-47":      "A-47 (Diritto ed economia politica).csv",
-    "A-48":      "A-48 (Scienze motorie e sportive).csv",
-    "A-50":      "A-50 (Scienze naturali, chimiche e biologiche).csv",
-    "A-51":      "A-51 (Tecnologie agrarie).csv",
-    "A-52":      "A-52 (Tecnologie di produzioni animali).csv",
-    "A-53":      "A-53 (Storia).csv",
-    "A-54":      "A-54 (Storia dell'arte).csv",
-    "A-57":      "A-57 (Tecnica della danza classica).csv",
-    "A-58":      "A-58 (Tecnica della danza contemporanea).csv",
-    "A-60":      "A-60 (Storia della musica e della danza).csv",
-    "A-61":      "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
-    "A-62":      "A-62 (Tecnologie e tecniche per la grafica).csv",
-    "A-63":      "A-63 (Tecnologie musicali).csv",
-    "A-64":      "A-64 (Teoria, analisi e composizione).csv",
-    "IRC":       "IRC (Religione Cattolica).csv",
-    # Classi musicali → rimappate sul file A-55
-    "AM55":      "A-55 (Strumento musicale).csv",
-    "AN55":      "A-55 (Strumento musicale).csv",
-    "AA55":      "A-55 (Strumento musicale).csv",
-    "AB55":      "A-55 (Strumento musicale).csv",
-    "AC55":      "A-55 (Strumento musicale).csv",
-    "AD55":      "A-55 (Strumento musicale).csv",
-    "AE55":      "A-55 (Strumento musicale).csv",
-    "AF55":      "A-55 (Strumento musicale).csv",
-    "AG55":      "A-55 (Strumento musicale).csv",
-    "AH55":      "A-55 (Strumento musicale).csv",
-    "AI55":      "A-55 (Strumento musicale).csv",
-    "AJ55":      "A-55 (Strumento musicale).csv",
-    "AK55":      "A-55 (Strumento musicale).csv",
-    "AL55":      "A-55 (Strumento musicale).csv",
-    "AO55":      "A-55 (Strumento musicale).csv",
-    "AP55":      "A-55 (Strumento musicale).csv",
-    "AQ55":      "A-55 (Strumento musicale).csv",
-    "AR55":      "A-55 (Strumento musicale).csv",
-    "AS55":      "A-55 (Strumento musicale).csv",
-    "AT55":      "A-55 (Strumento musicale).csv",
-    "AU55":      "A-55 (Strumento musicale).csv",
-    "AW55":      "A-55 (Strumento musicale).csv",
+    "A-01": "A-01 (Disegno e storia dell'arte).csv", "A-02": "A-02 (Design metalli, oreficeria, pietre).csv",
+    "A-05": "A-05 (Design del tessuto e della moda).csv", "A-07": "A-07 (Discipline audiovisive).csv",
+    "A-08": "A-08 (Discipline geometriche, architettura, scenotecnica).csv", "A-09": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
+    "A-11": "A-11 (Lettere e latino).csv", "A-12": "A-12 (Discipline letterarie).csv",
+    "A-13": "A-13 (Lettere, latino e greco - Liceo Classico).csv", "A-14": "A-14 (Discipline plastiche e scultoree).csv",
+    "A-15": "A-15 (Discipline sanitarie).csv", "A-16": "A-16 (Modellazione odontotecnica).csv",
+    "A-18": "A-18 (Filosofia e scienze umane).csv", "A-19": "A-19 (Filosofia e storia).csv",
+    "A-20": "A-20 (Fisica).csv", "A-21": "A-21 (Geografia).csv",
+    "A-22 (AA)": "A-22 (AA - Francese).csv", "A-22 (AB)": "A-22 (AB - IngleseAltra Lingua).csv",
+    "A-22 (AC)": "A-22 (AC - Spagnolo).csv", "A-22 (AD)": "A-22 (AD - Tedesco).csv",
+    "A-22 (AE)": "A-22 (AE - Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
+    "A-24": "A-24 (Lingue e culture dell'Asia orientale e sud-orientale).csv", "A-26": "A-26 (Matematica).csv",
+    "A-27": "A-27 (Matematica e fisica).csv", "A-30": "A-30 (Musica).csv",
+    "A-31": "A-31 (Scienze degli alimenti).csv", "A-32": "A-32 (Scienze della geologia e della mineralogia).csv",
+    "A-33": "A-33 (Scienze e tecnologie aeronautiche).csv", "A-34": "A-34 (Scienze e tecnologie chimiche).csv",
+    "A-36": "A-36 (Scienze e tecnologie della logistica).csv", "A-37": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
+    "A-38": "A-38 (Costruzioni aeronautiche).csv", "A-39": "A-39 (Costruzioni navali).csv",
+    "A-40": "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv", "A-41": "A-41 (Scienze e tecnologie informatiche).csv",
+    "A-42": "A-42 (Scienze e tecnologie meccaniche).csv", "A-43": "A-43 (Scienze e tecnologie nautiche).csv",
+    "A-44": "A-44 (Tecnologie tessili, abbigliamento e moda).csv", "A-45": "A-45 (Scienze economico-aziendali).csv",
+    "A-46": "A-46 (Scienze giuridico-economiche).csv", "A-47": "A-47 (Diritto ed economia politica).csv",
+    "A-48": "A-48 (Scienze motorie e sportive).csv", "A-50": "A-50 (Scienze naturali, chimiche e biologiche).csv",
+    "A-51": "A-51 (Tecnologie agrarie).csv", "A-52": "A-52 (Tecnologie di produzioni animali).csv",
+    "A-53": "A-53 (Storia).csv", "A-54": "A-54 (Storia dell'arte).csv",
+    "A-57": "A-57 (Tecnica della danza classica).csv", "A-58": "A-58 (Tecnica della danza contemporanea).csv",
+    "A-60": "A-60 (Storia della musica e della danza).csv", "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
+    "A-62": "A-62 (Tecnologie e tecniche per la grafica).csv", "A-63": "A-63 (Tecnologie musicali).csv",
+    "A-64": "A-64 (Teoria, analisi e composizione).csv", "IRC": "IRC (Religione Cattolica).csv",
+    # Mappatura musicali
+    "AM55": "A-55 (Strumento musicale).csv", "AN55": "A-55 (Strumento musicale).csv",
+    "AA55": "A-55 (Strumento musicale).csv", "AB55": "A-55 (Strumento musicale).csv",
+    "AC55": "A-55 (Strumento musicale).csv", "AD55": "A-55 (Strumento musicale).csv",
+    "AE55": "A-55 (Strumento musicale).csv", "AF55": "A-55 (Strumento musicale).csv",
+    "AG55": "A-55 (Strumento musicale).csv", "AH55": "A-55 (Strumento musicale).csv",
+    "AI55": "A-55 (Strumento musicale).csv", "AJ55": "A-55 (Strumento musicale).csv",
+    "AK55": "A-55 (Strumento musicale).csv", "AL55": "A-55 (Strumento musicale).csv",
+    "AO55": "A-55 (Strumento musicale).csv", "AP55": "A-55 (Strumento musicale).csv",
+    "AQ55": "A-55 (Strumento musicale).csv", "AR55": "A-55 (Strumento musicale).csv",
+    "AS55": "A-55 (Strumento musicale).csv", "AT55": "A-55 (Strumento musicale).csv",
+    "AU55": "A-55 (Strumento musicale).csv", "AW55": "A-55 (Strumento musicale).csv",
 }
 
 _SCUOLE_CSV_CACHE = {}
@@ -851,7 +763,12 @@ def genera_pdf():
                                  fascia_upper == "2_FASCIA" or
                                  fascia_upper == "IIFASCIA")
 
-        if is_sec_i_codice and is_i_fascia_selected:
+        # Sec II, I Fascia → Cartella specifica Estrazione_SS_1_Fascia
+        if is_sec_ii and is_i_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' (Sec II + I Fascia). {len(files_to_search)} candidati.")
+        elif is_sec_i_codice and is_i_fascia_selected:
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_I_FASCIA_FOLDER}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
@@ -865,10 +782,12 @@ def genera_pdf():
                                   f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_I_FASCIA_FOLDER}' + '{ESTRAZIONE_II_FASCIA_FOLDER}' (Tutte le fasce). {len(files_to_search)} candidati.")
         else:
+            # Sec II grado (Tutte le fasce / II fascia) → escludiamo le cartelle Sec I e la cartella specifica SS I Fascia per non replicare
             files_to_search = [f for f in root_files
                                if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and
-                                  not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
-            logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle Sec I). {len(files_to_search)} candidati.")
+                                  not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX) and
+                                  not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle Sec I e SS I Fascia). {len(files_to_search)} candidati.")
 
         # ====================================================================
         # Ricerca file di estrazione
@@ -881,7 +800,13 @@ def genera_pdf():
             if f.name.startswith('~$'):
                 continue
             for cod_ric in codici_ricerca:
-                prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+                # Rimuove il dash per matchare A-02 con A002, A055 con A055, ecc.
+                cod_ric_no_dash = cod_ric.replace('-', '')
+                # Normalizza A02 -> A002
+                if re.match(r'^A\d{2}$', cod_ric_no_dash):
+                    cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
+
+                prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
                 if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti:
                         break
