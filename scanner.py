@@ -102,6 +102,7 @@ ESTRAZIONE_I_FASCIA_PREFIX = ESTRAZIONE_I_FASCIA_FOLDER + "/"
 ESTRAZIONE_II_FASCIA_FOLDER = "Estrazione_MM_2_Fascia"
 ESTRAZIONE_II_FASCIA_PREFIX = ESTRAZIONE_II_FASCIA_FOLDER + "/"
 ESTRAZIONE_SS_I_FASCIA_PREFIX = "Estrazione_SS_1_Fascia/"
+ESTRAZIONE_SS_II_FASCIA_PREFIX = "Estrazione_SS_2_Fascia/"
 
 SIGLE_ALT = {
     "PS": "PU",
@@ -748,6 +749,7 @@ def genera_pdf():
             scuole_dict = dizionario_scuole_altro
 
         # ====================================================================
+        # ====================================================================
         # Selezione cartella di ricerca file estrazione
         # ====================================================================
         is_sec_i_codice = (not is_sec_ii and (
@@ -768,6 +770,17 @@ def genera_pdf():
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' (Sec II + I Fascia). {len(files_to_search)} candidati.")
+        # Sec II, II Fascia → Cartella specifica Estrazione_SS_2_Fascia
+        elif is_sec_ii and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II + II Fascia). {len(files_to_search)} candidati.")
+        # Sec II, Tutte le fasce → Entrambe le cartelle specifiche SS
+        elif is_sec_ii and not fascia_richiesta:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or
+                                  f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' + '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II - Tutte le fasce). {len(files_to_search)} candidati.")
         elif is_sec_i_codice and is_i_fascia_selected:
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
@@ -782,12 +795,12 @@ def genera_pdf():
                                   f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_I_FASCIA_FOLDER}' + '{ESTRAZIONE_II_FASCIA_FOLDER}' (Tutte le fasce). {len(files_to_search)} candidati.")
         else:
-            # Sec II grado (Tutte le fasce / II fascia) → escludiamo le cartelle Sec I e la cartella specifica SS I Fascia per non replicare
             files_to_search = [f for f in root_files
                                if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and
                                   not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX) and
-                                  not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
-            logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle Sec I e SS I Fascia). {len(files_to_search)} candidati.")
+                                  not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) and
+                                  not f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle estrazioni fascia). {len(files_to_search)} candidati.")
 
         # ====================================================================
         # Ricerca file di estrazione
