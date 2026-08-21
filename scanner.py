@@ -135,13 +135,17 @@ CODICI_EQUIVALENTI = {
     "A-12": {"A019", "A020", "A-12", "AM12"}, "AM12": {"A019", "A020", "A-12", "AM12"},
     "A016": {"A016", "AA22", "AM2A"}, "AA22": {"A016", "AA22", "AM2A"}, "AM2A": {"A016", "AA22", "AM2A"},
     "A018": {"A018", "AB22", "AM2B"}, "AB22": {"A018", "AB22", "AM2B"}, "AM2B": {"A018", "AB22", "AM2B"},
-    "A023": {"A023", "A-23", "AC22", "AM2C"}, "A-23": {"A023", "A-23", "AC22", "AM2C"}, "AC22": {"A023", "AC22", "AM2C"}, "AM2C": {"A023", "AC22", "AM2C"},,
+    "A023": {"A023", "A-23", "AC22", "AM2C"}, "A-23": {"A023", "A-23", "AC22", "AM2C"}, "AC22": {"A023", "AC22", "AM2C"}, "AM2C": {"A023", "AC22", "AM2C"},
     "A024": {"A024", "AD22", "AM2D"}, "AD22": {"A024", "AD22", "AM2D"}, "AM2D": {"A024", "AD22", "AM2D"},
     "AE22": {"AE22", "AM2E"}, "AM2E": {"AE22", "AM2E"},
     "A013": {"A013", "A-30", "AM30"}, "A-30": {"A013", "A-30", "AM30"}, "AM30": {"A013", "A-30", "AM30"},
     "A015": {"A015", "A-48", "AM48"}, "A-48": {"A015", "A-48", "AM48"}, "AM48": {"A015", "A-48", "AM48"},
     "A021": {"A021", "A-28", "A028"}, "A-28": {"A021", "A-28", "A028"}, "A028": {"A021", "A-28", "A028"},
     "A014": {"A014", "A-60", "A060"}, "A-60": {"A014", "A-60", "A060"}, "A060": {"A014", "A-60", "A060"},
+        # Mappature per Sec I grado (vecchi/nuovi codici)
+    "A012": {"A012", "A046", "A047"}, # A012 (Diritto) -> nuovo A046/A047
+    "A076": {"A076", "A030", "A031"}, # A076 (Strumento musicale) -> nuovo A030 o A031
+    "IRC":  {"IRC", "A079", "A080", "A081", "A083"}, # IRC -> nuovi codici A079, A080, ecc.
 }
 
 # ========================================================================
@@ -716,10 +720,18 @@ def genera_pdf():
 
         # Logica codici ricerca
         if is_sec_ii:
-            # Per Sec II grado, NON usare CODICI_EQUIVALENTI (che mappano A-01 in A011 per la Sec I).
-            # Usa solo il codice esatto, normalizzato (es. A-01 -> A001)
             codici_ricerca = {codice_upper}
-            # Se ha il dash (es. A-01), aggiungi la versione senza dash (A01) e normalizzata (A001)
+            
+            # Mappature vecchi/nuovi codici per Sec II grado
+            if codice_upper == "A001":
+                codici_ricerca.add("A017") # A017 è il vecchio codice per Disegno e Storia dell'Arte
+            elif codice_upper == "ADSS":
+                codici_ricerca.add("A030") # A030 è il vecchio codice per Sostegno Sec II
+            elif codice_upper == "A027":
+                codici_ricerca.add("A031") # A031 è il vecchio codice per Musica
+            elif codice_upper == "A054":
+                codici_ricerca.add("A076") # A076 è il vecchio codice per Storia dell'Arte
+                
             if '-' in codice_upper:
                 cod_no_dash = codice_upper.replace('-', '')
                 codici_ricerca.add(cod_no_dash)
