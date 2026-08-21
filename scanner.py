@@ -718,19 +718,22 @@ def genera_pdf():
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
 
+        # ✅ AGGIUNTA: definisci is_sec_ii PRIMA dell'uso
+        is_sec_ii = (ordine_classe == "secondaria_ii")
+
         # Logica codici ricerca
         if is_sec_ii:
             codici_ricerca = {codice_upper}
             
             # Mappature vecchi/nuovi codici per Sec II grado
             if codice_upper == "A001":
-                codici_ricerca.add("A017") # A017 è il vecchio codice per Disegno e Storia dell'Arte
+                codici_ricerca.add("A017")
             elif codice_upper == "ADSS":
-                codici_ricerca.add("A030") # A030 è il vecchio codice per Sostegno Sec II
+                codici_ricerca.add("A030")
             elif codice_upper == "A027":
-                codici_ricerca.add("A031") # A031 è il vecchio codice per Musica
+                codici_ricerca.add("A031")
             elif codice_upper == "A054":
-                codici_ricerca.add("A076") # A076 è il vecchio codice per Storia dell'Arte
+                codici_ricerca.add("A076")
                 
             if '-' in codice_upper:
                 cod_no_dash = codice_upper.replace('-', '')
@@ -745,7 +748,8 @@ def genera_pdf():
         # ====================================================================
         # Logica selezione file numero scuole
         # ====================================================================
-        is_sec_ii = (ordine_classe == "secondaria_ii")
+        # ❌ RIMUOVERE la riga duplicata: is_sec_ii = (ordine_classe == "secondaria_ii")
+        # (ora è già definito sopra)
 
         if is_sec_ii:
             # Per Sec II grado → legge dalla cartella "Numero scuole II grado"
