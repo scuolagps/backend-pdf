@@ -1221,90 +1221,115 @@ def genera_bollettino():
         fascia_filter = ''
 
     codici_validi = []
+    ordini_selezionati = set()
     for c in classi_selezionate:
         if '|' in c:
-            _, c = c.split('|', 1)
+            ord, c = c.split('|', 1)
+            ordini_selezionati.add(ord.strip().lower())
         codici_validi.append(c.split(' - ')[0].strip().upper())
+
+    # Mappatura ordini di scuola -> cartelle bollettini specifiche
+    prefixes = []
+    if "infanzia" in ordini_selezionati:
+        prefixes.append("Bollettini/AA/")
+    if "primaria" in ordini_selezionati:
+        prefixes.append("Bollettini/EE/")
+    if "secondaria_i" in ordini_selezionati:
+        prefixes.append("Bollettini/MM/")
+    if "secondaria_ii" in ordini_selezionati:
+        prefixes.append("Bollettini/SS/")
 
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
-        file_obj = next((f for f in root_files if f.name.upper() == "RISULTATO_ESTRAZIONE_BOLLETTINI.CSV"), None)
-        if not file_obj:
-            return jsonify({"error": "File Risultato_Estrazione_Bollettini.csv non trovato nel repository."}), 404
-        if hasattr(file_obj, 'download_url') and file_obj.download_url:
-            response = requests.get(file_obj.download_url)
-            file_data = response.content
-        else:
-            file_data = file_obj.decoded_content
-        csv_text = file_data.decode('utf-8-sig', errors='ignore')
-        csv_text = clean_csv_text(csv_text)
-        df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+        
+        # Filtra solo i file CSV che iniziano con i prefissi delle cartelle selezionate
+        file_objs = [f for f in root_files if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv')]
+        
+        if not file_objs:
+            return jsonify({"error": "Nessun file bollettino trovato per gli ordini di scuola selezionati."}), 404
+            
+        results = {}
+        # Elabora ogni file trovato nelle cartelle specifiche
+        for file_obj in file_objs:
+            try:
+                if hasattr(file_obj, 'download_url') and file_obj.download_url:
+                    response = requests.get(file_obj.download_url)
+                    file_data = response.content
+                else:
+                    file_data = file_obj.decoded_content
+                csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                csv_text = clean_csv_text(csv_text)
+                df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+            except Exception as e:
+                logger.error(f"Errore lettura bollettino {file_obj.path}: {e}")
+                continue
+
+            df.columns = [str(c).strip() for c in df.columns]
+            current_prov = None
+            current_region = None
+            current_prov_selected = False
+            
+            for _, row in df.iterrows():
+                val_classe = str(row.get('Classe di concorso', '')).strip()
+                if not val_classe or val_classe in ('nan', 'None'):
+                    continue
+                is_nomina = val_classe.upper().startswith('NOMINA')
+                is_data = any(cod in val_classe.upper() for cod in codici_validi)
+                if is_data:
+                    if not current_prov_selected or current_prov is None:
+                        continue
+                    fascia_raw = str(row.get('Fascia', '')).strip().upper()
+                    if fascia_raw not in ('F1', 'F2'):
+                        continue
+                    if fascia_filter and fascia_raw != fascia_filter:
+                        continue
+                    try:
+                        pos_val = row.get('Posizione')
+                        if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
+                            continue
+                        pos = int(float(pos_val))
+                        punt_val = row.get('Punteggio')
+                        if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
+                            continue
+                        punt = pulisci_punteggio(punt_val)
+                        if punt is None:
+                            continue
+                    except (ValueError, TypeError):
+                        continue
+                    if current_prov not in results:
+                        results[current_prov] = {
+                            "regione": current_region, "nomine_totali": 0, "nomine_f1": 0,
+                            "nomine_f2": 0, "min_f1": None, "min_f2": None
+                        }
+                    prov_data = results[current_prov]
+                    prov_data["nomine_totali"] += 1
+                    if fascia_raw == "F1":
+                        prov_data["nomine_f1"] += 1
+                        if prov_data["min_f1"] is None or punt < prov_data["min_f1"]:
+                            prov_data["min_f1"] = punt
+                    elif fascia_raw == "F2":
+                        prov_data["nomine_f2"] += 1
+                        if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
+                            prov_data["min_f2"] = punt
+                elif not is_nomina:
+                    for sigla, (region, nome) in PROVINCE_DATA.items():
+                        if val_classe.upper() == nome.upper():
+                            prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
+                            if (prov_set and prov_norm in prov_set) or \
+                               (not prov_set and reg_set and region.upper() in reg_set) or \
+                               (not prov_set and not reg_set):
+                                current_prov = nome
+                                current_region = region
+                                current_prov_selected = True
+                            else:
+                                current_prov = nome
+                                current_region = region
+                                current_prov_selected = False
+                            break
+
     except Exception as e:
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
-
-    df.columns = [str(c).strip() for c in df.columns]
-    results = {}
-    current_prov = None
-    current_region = None
-    current_prov_selected = False
-    for _, row in df.iterrows():
-        val_classe = str(row.get('Classe di concorso', '')).strip()
-        if not val_classe or val_classe in ('nan', 'None'):
-            continue
-        is_nomina = val_classe.upper().startswith('NOMINA')
-        is_data = any(cod in val_classe.upper() for cod in codici_validi)
-        if is_data:
-            if not current_prov_selected or current_prov is None:
-                continue
-            fascia_raw = str(row.get('Fascia', '')).strip().upper()
-            if fascia_raw not in ('F1', 'F2'):
-                continue
-            if fascia_filter and fascia_raw != fascia_filter:
-                continue
-            try:
-                pos_val = row.get('Posizione')
-                if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
-                    continue
-                pos = int(float(pos_val))
-                punt_val = row.get('Punteggio')
-                if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
-                    continue
-                punt = pulisci_punteggio(punt_val)
-                if punt is None:
-                    continue
-            except (ValueError, TypeError):
-                continue
-            if current_prov not in results:
-                results[current_prov] = {
-                    "regione": current_region, "nomine_totali": 0, "nomine_f1": 0,
-                    "nomine_f2": 0, "min_f1": None, "min_f2": None
-                }
-            prov_data = results[current_prov]
-            prov_data["nomine_totali"] += 1
-            if fascia_raw == "F1":
-                prov_data["nomine_f1"] += 1
-                if prov_data["min_f1"] is None or punt < prov_data["min_f1"]:
-                    prov_data["min_f1"] = punt
-            elif fascia_raw == "F2":
-                prov_data["nomine_f2"] += 1
-                if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
-                    prov_data["min_f2"] = punt
-        elif not is_nomina:
-            for sigla, (region, nome) in PROVINCE_DATA.items():
-                if val_classe.upper() == nome.upper():
-                    prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
-                    if (prov_set and prov_norm in prov_set) or \
-                       (not prov_set and reg_set and region.upper() in reg_set) or \
-                       (not prov_set and not reg_set):
-                        current_prov = nome
-                        current_region = region
-                        current_prov_selected = True
-                    else:
-                        current_prov = nome
-                        current_region = region
-                        current_prov_selected = False
-                    break
 
     out_data = []
     for prov, r in results.items():
