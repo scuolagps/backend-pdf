@@ -1211,19 +1211,28 @@ def genera_bollettino():
         return jsonify({"status": "ok"}), 200
     if not g:
         return jsonify({"error": "Server non configurato correttamente (Token GitHub mancante)."}), 500
+    
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Payload non valido."}), 400
+        
     classi_selezionate = data.get('classi', [])
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
+    
+    logger.info(f"=== BOLLETTINO: Nuova richiesta ===")
+    logger.info(f"Classi ricevute: {classi_selezionate}")
+    logger.info(f"Regioni: {regioni_richieste} | Province: {province_nomi} | Fascia: {fascia_richiesta}")
+
     if regioni_richieste and not province_nomi:
         for sigla, (region, nome) in PROVINCE_DATA.items():
             if region in regioni_richieste and nome not in province_nomi:
                 province_nomi.append(nome)
+                
     prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
     reg_set = {r.upper() for r in regioni_richieste}
+    
     if fascia_richiesta.upper() == 'II_FASCIA':
         fascia_filter = 'F2'
     elif fascia_richiesta.upper() == 'I_FASCIA':
@@ -1231,15 +1240,21 @@ def genera_bollettino():
     else:
         fascia_filter = ''
 
+    logger.info(f"Filtro fascia applicato (F1/F2): '{fascia_filter}'")
+
     codici_validi = []
     ordini_selezionati = set()
     for c in classi_selezionate:
         if '|' in c:
-            ord, c = c.split('|', 1)
+            ord, c_clean = c.split('|', 1)
             ordini_selezionati.add(ord.strip().lower())
-        codici_validi.append(c.split(' - ')[0].strip().upper())
+        else:
+            c_clean = c
+        codici_validi.append(c_clean.split(' - ')[0].strip().upper())
 
-    # Mappatura ordini di scuola -> cartelle bollettini specifiche
+    logger.info(f"Ordini selezionati: {ordini_selezionati}")
+    logger.info(f"Codici validi estratti: {codici_validi}")
+
     prefixes = []
     if "infanzia" in ordini_selezionati:
         prefixes.append("Bollettini/AA/")
@@ -1250,18 +1265,23 @@ def genera_bollettino():
     if "secondaria_ii" in ordini_selezionati:
         prefixes.append("Bollettini/SS/")
 
+    logger.info(f"Prefissi cartelle da cercare: {prefixes}")
+
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
         
-        # Filtra solo i file CSV che iniziano con i prefissi delle cartelle selezionate
         file_objs = [f for f in root_files if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv')]
         
+        logger.info(f"Trovati {len(file_objs)} file CSV nelle cartelle Bollettini selezionate.")
+        if file_objs:
+            logger.info(f"Primi 3 file trovati: {[f.path for f in file_objs[:3]]}")
+        
         if not file_objs:
+            logger.error("Nessun file trovato nelle cartelle specificate!")
             return jsonify({"error": "Nessun file bollettino trovato per gli ordini di scuola selezionati."}), 404
             
         results = {}
-        # Elabora ogni file trovato nelle cartelle specifiche
         for file_obj in file_objs:
             try:
                 if hasattr(file_obj, 'download_url') and file_obj.download_url:
@@ -1272,6 +1292,8 @@ def genera_bollettino():
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                
+                logger.info(f"Elaborazione file: {file_obj.path} - Righe totali: {len(df)}")
             except Exception as e:
                 logger.error(f"Errore lettura bollettino {file_obj.path}: {e}")
                 continue
@@ -1281,20 +1303,29 @@ def genera_bollettino():
             current_region = None
             current_prov_selected = False
             
+            righe_elaborate = 0
+            righe_nomine_trovate = 0
+            
             for _, row in df.iterrows():
+                righe_elaborate += 1
                 val_classe = str(row.get('Classe di concorso', '')).strip()
                 if not val_classe or val_classe in ('nan', 'None'):
                     continue
+                    
                 is_nomina = val_classe.upper().startswith('NOMINA')
                 is_data = any(cod in val_classe.upper() for cod in codici_validi)
+                
                 if is_data:
+                    righe_nomine_trovate += 1
                     if not current_prov_selected or current_prov is None:
                         continue
+                        
                     fascia_raw = str(row.get('Fascia', '')).strip().upper()
                     if fascia_raw not in ('F1', 'F2'):
                         continue
                     if fascia_filter and fascia_raw != fascia_filter:
                         continue
+                        
                     try:
                         pos_val = row.get('Posizione')
                         if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
@@ -1308,11 +1339,13 @@ def genera_bollettino():
                             continue
                     except (ValueError, TypeError):
                         continue
+                        
                     if current_prov not in results:
                         results[current_prov] = {
                             "regione": current_region, "nomine_totali": 0, "nomine_f1": 0,
                             "nomine_f2": 0, "min_f1": None, "min_f2": None
                         }
+                        
                     prov_data = results[current_prov]
                     prov_data["nomine_totali"] += 1
                     if fascia_raw == "F1":
@@ -1323,6 +1356,7 @@ def genera_bollettino():
                         prov_data["nomine_f2"] += 1
                         if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
                             prov_data["min_f2"] = punt
+                            
                 elif not is_nomina:
                     for sigla, (region, nome) in PROVINCE_DATA.items():
                         if val_classe.upper() == nome.upper():
@@ -1339,7 +1373,12 @@ def genera_bollettino():
                                 current_prov_selected = False
                             break
 
+            logger.info(f"File {file_obj.path} elaborato. Righe lette: {righe_elaborate}, Righe con classe matching: {righe_nomine_trovate}")
+
+        logger.info(f"Elaborazione completata. Totale province nei results: {len(results)}")
+
     except Exception as e:
+        logger.error(f"Errore critico lettura bollettino: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
     out_data = []
@@ -1356,6 +1395,8 @@ def genera_bollettino():
             "min_f1": min_f1_str, "min_f2": min_f2_str, "assorbimento_f1": assorb_f1,
             "prob_f1": prob_f1, "prob_f2": prob_f2, "nomine_f1": r["nomine_f1"], "nomine_f2": r["nomine_f2"]
         })
+        
+    logger.info(f"Dati finali da inviare al frontend: {len(out_data)} righe.")
     return jsonify({"data": out_data})
 
 if __name__ == '__main__':
