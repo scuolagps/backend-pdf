@@ -255,6 +255,11 @@ def sanitize_for_fpdf(text):
 def normalize_string(s):
     return re.sub(r'[\s_-]+', '', str(s)).upper()
 
+def normalize_fascia(s):
+    s = str(s).upper().strip()
+    s = s.replace('1', 'I').replace('2', 'II').replace('3', 'III')
+    return re.sub(r'[\s_-]+', '', s)
+
 def pulisci_punteggio(valore):
     s = str(valore).strip()
     if not s or s.lower() in ['nan', 'none', '*', '-', '']:
@@ -697,7 +702,7 @@ def genera_pdf():
             codice = codice_raw
 
         codice_upper = codice.upper()
-        fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
+        fascia_norm = normalize_fascia(fascia_richiesta) if fascia_richiesta else ""
 
         is_sec_ii = (ordine_classe == "secondaria_ii")
 
@@ -841,7 +846,7 @@ def genera_pdf():
                         break
                     if fascia_norm:
                         file_fascia_part = f.name.upper()[len(prefix):].replace('.CSV', '')
-                        file_fascia_norm = normalize_string(file_fascia_part)
+                        file_fascia_norm = normalize_fascia(file_fascia_part)
                         if file_fascia_norm == fascia_norm:
                             file_da_elaborare.append(f)
                             nomi_file_visti.add(f.name)
@@ -886,7 +891,15 @@ def genera_pdf():
                         if cod_ric in file_trovato.name:
                             parti = file_trovato.name.split(cod_ric)
                             if len(parti) > 1:
-                                fascia_nome = parti[-1].replace("_", " ").replace(".csv", "").strip().upper()
+                                raw_fascia = parti[-1].replace("_", " ").replace(".csv", "").strip().upper()
+                                if "1" in raw_fascia or "I" in raw_fascia:
+                                    fascia_nome = "I FASCIA"
+                                elif "2" in raw_fascia or "II" in raw_fascia:
+                                    fascia_nome = "II FASCIA"
+                                elif "3" in raw_fascia or "III" in raw_fascia:
+                                    fascia_nome = "III FASCIA"
+                                else:
+                                    fascia_nome = raw_fascia
                                 break
                     if not fascia_nome:
                         fascia_nome = "DETTAGLI"
