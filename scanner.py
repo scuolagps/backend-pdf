@@ -97,12 +97,15 @@ SEC_I_MUSICAL_NAMES = {
     "AM56": "Violino", "AN56": "Violoncello"
 }
 
-ESTRAZIONE_I_FASCIA_FOLDER = "Estrazione_MM_1_Fascia"
-ESTRAZIONE_I_FASCIA_PREFIX = ESTRAZIONE_I_FASCIA_FOLDER + "/"
-ESTRAZIONE_II_FASCIA_FOLDER = "Estrazione_MM_2_Fascia"
-ESTRAZIONE_II_FASCIA_PREFIX = ESTRAZIONE_II_FASCIA_FOLDER + "/"
-ESTRAZIONE_SS_I_FASCIA_PREFIX = "Estrazione_SS_1_Fascia/"
-ESTRAZIONE_SS_II_FASCIA_PREFIX = "Estrazione_SS_2_Fascia/"
+# Cartelle di estrazione per ogni ordine di scuola e fascia
+ESTRAZIONE_AA_I_FASCIA_PREFIX  = "Estrazione_AA_1_Fascia/"  # Infanzia I fascia
+ESTRAZIONE_AA_II_FASCIA_PREFIX = "Estrazione_AA_2_Fascia/"  # Infanzia II fascia
+ESTRAZIONE_EE_I_FASCIA_PREFIX  = "Estrazione_EE_1_Fascia/"  # Primaria I fascia
+ESTRAZIONE_EE_II_FASCIA_PREFIX = "Estrazione_EE_2_Fascia/"  # Primaria II fascia
+ESTRAZIONE_MM_I_FASCIA_PREFIX  = "Estrazione_MM_1_Fascia/"  # Secondaria I grado I fascia
+ESTRAZIONE_MM_II_FASCIA_PREFIX = "Estrazione_MM_2_Fascia/"  # Secondaria I grado II fascia
+ESTRAZIONE_SS_I_FASCIA_PREFIX  = "Estrazione_SS_1_Fascia/"  # Secondaria II grado I fascia
+ESTRAZIONE_SS_II_FASCIA_PREFIX = "Estrazione_SS_2_Fascia/"  # Secondaria II grado II fascia
 
 SIGLE_ALT = {
     "PS": "PU",
@@ -719,7 +722,10 @@ def genera_pdf():
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
 
         # ✅ AGGIUNTA: definisci is_sec_ii PRIMA dell'uso
+        is_sec_i = (ordine_classe == "secondaria_ii")
         is_sec_ii = (ordine_classe == "secondaria_ii")
+        is_infanzia = (ordine_classe == "infanzia")
+        is_primaria = (ordine_classe == "primaria")
 
         # Logica codici ricerca
         if is_sec_ii:
@@ -778,57 +784,92 @@ def genera_pdf():
             scuole_dict = dizionario_scuole_altro
 
         # ====================================================================
+        # Selezione cartella di ricerca file estrazione in base a ordine + fascia
         # ====================================================================
-        # Selezione cartella di ricerca file estrazione
-        # ====================================================================
+        is_infanzia  = (ordine_classe == "infanzia")
+        is_primaria  = (ordine_classe == "primaria")
         is_sec_i_codice = (not is_sec_ii and (
                            codice_upper in SEC_I_CLASSI or
                            codice_upper in SEC_I_MUSICAL_CLASSI or
                            codice_upper in SEC_I_CSV_FILE_MAP or
                            codice_upper == "ADMM"))
-        fascia_upper = (fascia_richiesta or "").upper().strip()
-        is_i_fascia_selected = (fascia_upper == "I_FASCIA" or
-                                fascia_upper == "1_FASCIA" or
-                                fascia_upper == "IFASCIA")
-        is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or
-                                 fascia_upper == "2_FASCIA" or
-                                 fascia_upper == "IIFASCIA")
+        # Per secondaria I grado consideriamo anche l'ordine "secondaria_i"
+        is_sec_i_ordine = (ordine_classe == "secondaria_i") or is_sec_i_codice
 
-        # Sec II, I Fascia → Cartella specifica Estrazione_SS_1_Fascia
-        if is_sec_ii and is_i_fascia_selected:
+        fascia_upper = (fascia_richiesta or "").upper().strip()
+        is_i_fascia_selected  = (fascia_upper in ("I_FASCIA", "1_FASCIA", "IFASCIA"))
+        is_ii_fascia_selected = (fascia_upper in ("II_FASCIA", "2_FASCIA", "IIFASCIA"))
+
+        # ---- INFANZIA ----
+        if is_infanzia and is_i_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_AA_I_FASCIA_PREFIX}' (Infanzia + I Fascia). {len(files_to_search)} candidati.")
+        elif is_infanzia and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_AA_II_FASCIA_PREFIX}' (Infanzia + II Fascia). {len(files_to_search)} candidati.")
+        elif is_infanzia and not fascia_richiesta:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX) or
+                                  f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_AA_I_FASCIA_PREFIX}' + '{ESTRAZIONE_AA_II_FASCIA_PREFIX}' (Infanzia - Tutte le fasce). {len(files_to_search)} candidati.")
+
+        # ---- PRIMARIA ----
+        elif is_primaria and is_i_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_EE_I_FASCIA_PREFIX}' (Primaria + I Fascia). {len(files_to_search)} candidati.")
+        elif is_primaria and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_EE_II_FASCIA_PREFIX}' (Primaria + II Fascia). {len(files_to_search)} candidati.")
+        elif is_primaria and not fascia_richiesta:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX) or
+                                  f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_EE_I_FASCIA_PREFIX}' + '{ESTRAZIONE_EE_II_FASCIA_PREFIX}' (Primaria - Tutte le fasce). {len(files_to_search)} candidati.")
+
+        # ---- SECONDARIA I GRADO ----
+        elif is_sec_i_ordine and is_i_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_MM_I_FASCIA_PREFIX}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
+        elif is_sec_i_ordine and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_MM_II_FASCIA_PREFIX}' (Sec I + II Fascia). {len(files_to_search)} candidati.")
+        elif is_sec_i_ordine and not fascia_richiesta:
+            files_to_search = [f for f in root_files
+                               if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX) or
+                                  f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
+            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_MM_I_FASCIA_PREFIX}' + '{ESTRAZIONE_MM_II_FASCIA_PREFIX}' (Sec I - Tutte le fasce). {len(files_to_search)} candidati.")
+
+        # ---- SECONDARIA II GRADO ----
+        elif is_sec_ii and is_i_fascia_selected:
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' (Sec II + I Fascia). {len(files_to_search)} candidati.")
-        # Sec II, II Fascia → Cartella specifica Estrazione_SS_2_Fascia
         elif is_sec_ii and is_ii_fascia_selected:
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II + II Fascia). {len(files_to_search)} candidati.")
-        # Sec II, Tutte le fasce → Entrambe le cartelle specifiche SS
         elif is_sec_ii and not fascia_richiesta:
             files_to_search = [f for f in root_files
                                if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or
                                   f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' + '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II - Tutte le fasce). {len(files_to_search)} candidati.")
-        elif is_sec_i_codice and is_i_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
-            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_I_FASCIA_FOLDER}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
-        elif is_sec_i_codice and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
-            logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_II_FASCIA_FOLDER}' (Sec I + II Fascia). {len(files_to_search)} candidati.")
-        elif is_sec_i_codice and not fascia_richiesta:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) or
-                                  f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
-            logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_I_FASCIA_FOLDER}' + '{ESTRAZIONE_II_FASCIA_FOLDER}' (Tutte le fasce). {len(files_to_search)} candidati.")
+
+        # ---- FALLBACK: ricerca in root escludendo tutte le cartelle di estrazione ----
         else:
+            all_prefixes = (
+                ESTRAZIONE_AA_I_FASCIA_PREFIX, ESTRAZIONE_AA_II_FASCIA_PREFIX,
+                ESTRAZIONE_EE_I_FASCIA_PREFIX, ESTRAZIONE_EE_II_FASCIA_PREFIX,
+                ESTRAZIONE_MM_I_FASCIA_PREFIX, ESTRAZIONE_MM_II_FASCIA_PREFIX,
+                ESTRAZIONE_SS_I_FASCIA_PREFIX, ESTRAZIONE_SS_II_FASCIA_PREFIX,
+            )
             files_to_search = [f for f in root_files
-                               if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and
-                                  not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX) and
-                                  not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) and
-                                  not f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+                               if not any(f.path.startswith(p) for p in all_prefixes)]
             logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle estrazioni fascia). {len(files_to_search)} candidati.")
 
         # ====================================================================
