@@ -86,7 +86,7 @@ PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items(
 
 SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
-SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A076", "A077", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM12", "AM30", "AM48", "AM55", "AM56", "AM70", "AM71", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55", "A-01", "A-12", "A-23", "A-28", "A-30", "A-48", "A-60", "AA22", "AB22", "AC22", "AD22", "AE22", "IRC"}
+SEC_I_CLASSI = {"AB24", "A011", "A012", "A013", "A014", "A015", "A016", "A017", "A018", "A019", "A020", "A021", "A022", "A023", "A024", "A026", "A027", "A028", "A031", "A032", "A034", "A036", "A037", "A038", "A040", "A041", "A042", "A044", "A045", "A046", "A047", "A050", "A051", "A052", "A053", "A054", "A057", "A058", "A059", "A060", "A061", "A062", "A063", "A064", "A065", "A066", "A076", "A077", "A078", "A084", "A085", "AA55", "AA56", "AB55", "AB56", "AC55", "AC56", "AD55", "AD56", "ADMM", "AE55", "AE56", "AF55", "AF56", "AG56", "AH55", "AH56", "AI55", "AI56", "AJ55", "AJ56", "AK55", "AK56", "AL55", "AL56", "AM01", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM12", "AM30", "AM48", "AM55", "AM56", "AM70", "AM71", "AN55", "AN56", "AO55", "AP55", "AQ55", "AR55", "AS01", "AS2A", "AS2B", "AS2C", "AS2D", "AS2E", "AS2I", "AS2L", "AS2N", "AS12", "AS30", "AS48", "AS55", "AT55", "AU55", "AW55", "A-01", "A-12", "A-23", "A-28", "A-30", "A-48", "A-60", "AA22", "AB22", "AC22", "AD22", "AE22", "IRC"}
 
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 
@@ -145,15 +145,11 @@ CODICI_EQUIVALENTI = {
     "A015": {"A015", "A-48", "AM48"}, "A-48": {"A015", "A-48", "AM48"}, "AM48": {"A015", "A-48", "AM48"},
     "A021": {"A021", "A-28", "A028"}, "A-28": {"A021", "A-28", "A028"}, "A028": {"A021", "A-28", "A028"},
     "A014": {"A014", "A-60", "A060"}, "A-60": {"A014", "A-60", "A060"}, "A060": {"A014", "A-60", "A060"},
-        # Mappature per Sec I grado (vecchi/nuovi codici)
-    "A012": {"A012", "A046", "A047"}, # A012 (Diritto) -> nuovo A046/A047
-    "A076": {"A076", "A030", "A031"}, # A076 (Strumento musicale) -> nuovo A030 o A031
-    "IRC":  {"IRC", "A079", "A080", "A081", "A083"}, # IRC -> nuovi codici A079, A080, ecc.
+    "A012": {"A012", "A046", "A047"}, 
+    "A076": {"A076", "A030", "A031"}, 
+    "IRC":  {"IRC", "A079", "A080", "A081", "A083"}, 
 }
 
-# ========================================================================
-# Cartella e mappature per Scuola Secondaria II grado
-# ========================================================================
 SEC_II_FOLDER = "Numero scuole II grado"
 SEC_II_PREFIX = SEC_II_FOLDER + "/"
 
@@ -192,7 +188,6 @@ SEC_II_CSV_FILE_MAP = {
     "A-60": "A-60 (Storia della musica e della danza).csv", "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
     "A-62": "A-62 (Tecnologie e tecniche per la grafica).csv", "A-63": "A-63 (Tecnologie musicali).csv",
     "A-64": "A-64 (Teoria, analisi e composizione).csv", "IRC": "IRC (Religione Cattolica).csv",
-    # Mappatura musicali
     "AM55": "A-55 (Strumento musicale).csv", "AN55": "A-55 (Strumento musicale).csv",
     "AA55": "A-55 (Strumento musicale).csv", "AB55": "A-55 (Strumento musicale).csv",
     "AC55": "A-55 (Strumento musicale).csv", "AD55": "A-55 (Strumento musicale).csv",
@@ -534,30 +529,22 @@ def get_scuole_dict_from_csv(repo, codice):
         return None
 
 def get_scuole_dict_sec_ii_from_csv(repo, codice):
-    """Legge il numero di scuole dalla cartella 'Numero scuole II grado'."""
     global _SCUOLE_SEC_II_CSV_CACHE
-
     codice_upper = codice.upper()
-
-    # Classi musicali → file A-55
     if codice_upper in SEC_II_MUSICAL_CLASSI:
         csv_filename = "A-55 (Strumento musicale).csv"
     else:
         csv_filename = SEC_II_CSV_FILE_MAP.get(codice_upper) or SEC_II_CSV_FILE_MAP.get(codice)
-
     if not csv_filename:
         return None
-
     if csv_filename in _SCUOLE_SEC_II_CSV_CACHE:
         return _SCUOLE_SEC_II_CSV_CACHE[csv_filename]
-
     file_path = f"{SEC_II_PREFIX}{csv_filename}"
     try:
         logger.info(f"[SEC II] Lettura file CSV scuole per classe {codice}: {file_path}")
         file_content = repo.get_contents(file_path)
         raw_text = file_content.decoded_content.decode('utf-8-sig', errors='ignore')
         text = clean_csv_text(raw_text)
-
         df = None
         for sep in [';', ',', '\t', '|']:
             try:
@@ -569,7 +556,6 @@ def get_scuole_dict_sec_ii_from_csv(repo, codice):
                     break
             except Exception:
                 continue
-
         scuole_dict = {}
         if df is not None and len(df.columns) >= 2:
             prov_col = None
@@ -608,14 +594,12 @@ def get_scuole_dict_sec_ii_from_csv(repo, codice):
                     if sigla:
                         _, nome = PROVINCE_DATA[sigla]
                         scuole_dict[nome] = int(num_str)
-
         if not scuole_dict:
             logger.warning(f"[SEC II] Nessun dato trovato nel CSV scuole per {codice}. Uso fallback a 0.")
             result_dict = SCUOLE_FALLBACK
         else:
             logger.info(f"[SEC II] Dizionario scuole CSV per {codice} caricato: {len(scuole_dict)} province trovate.")
             result_dict = scuole_dict
-
         _SCUOLE_SEC_II_CSV_CACHE[csv_filename] = result_dict
         return result_dict
     except Exception as e:
@@ -656,12 +640,7 @@ def genera_pdf():
         return jsonify({"error": "Nessuna classe selezionata."}), 400
     if len(classi_selezionate) > MAX_CLASSI:
         return jsonify({"error": f"Numero massimo di classi consentito: {MAX_CLASSI}"}), 400
-    province_sigle = []
-    for prov in province_nomi:
-        sigla = PROVINCE_SIGLE.get(prov)
-        if sigla:
-            province_sigle.append(sigla)
-            
+        
     codici_validi = []
     for codice in classi_selezionate:
         identificativo = codice.split(' - ')[0].strip()
@@ -710,7 +689,6 @@ def genera_pdf():
     logger.info(f"Province sigle finali: {province_sigle}")
 
     for codice_raw in codici_validi:
-        # Parse formato "ordine|codice - descrizione"
         if '|' in codice_raw:
             ordine_classe, codice = codice_raw.split('|', 1)
             ordine_classe = ordine_classe.strip().lower()
@@ -721,17 +699,10 @@ def genera_pdf():
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
 
-        # ✅ AGGIUNTA: definisci is_sec_ii PRIMA dell'uso
-        is_sec_i = (ordine_classe == "secondaria_ii")
         is_sec_ii = (ordine_classe == "secondaria_ii")
-        is_infanzia = (ordine_classe == "infanzia")
-        is_primaria = (ordine_classe == "primaria")
 
-        # Logica codici ricerca
         if is_sec_ii:
             codici_ricerca = {codice_upper}
-            
-            # Mappature vecchi/nuovi codici per Sec II grado
             if codice_upper == "A001":
                 codici_ricerca.add("A017")
             elif codice_upper == "ADSS":
@@ -740,7 +711,6 @@ def genera_pdf():
                 codici_ricerca.add("A031")
             elif codice_upper == "A054":
                 codici_ricerca.add("A076")
-                
             if '-' in codice_upper:
                 cod_no_dash = codice_upper.replace('-', '')
                 codici_ricerca.add(cod_no_dash)
@@ -751,14 +721,7 @@ def genera_pdf():
         
         logger.info(f"[{codice_upper}] Codici ricerca: {codici_ricerca} | Ordine: {ordine_classe}")
 
-        # ====================================================================
-        # Logica selezione file numero scuole
-        # ====================================================================
-        # ❌ RIMUOVERE la riga duplicata: is_sec_ii = (ordine_classe == "secondaria_ii")
-        # (ora è già definito sopra)
-
         if is_sec_ii:
-            # Per Sec II grado → legge dalla cartella "Numero scuole II grado"
             csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper)
             if csv_scuole is not None:
                 scuole_dict = csv_scuole
@@ -793,7 +756,6 @@ def genera_pdf():
                            codice_upper in SEC_I_MUSICAL_CLASSI or
                            codice_upper in SEC_I_CSV_FILE_MAP or
                            codice_upper == "ADMM"))
-        # Per secondaria I grado consideriamo anche l'ordine "secondaria_i"
         is_sec_i_ordine = (ordine_classe == "secondaria_i") or is_sec_i_codice
 
         fascia_upper = (fascia_richiesta or "").upper().strip()
@@ -802,62 +764,46 @@ def genera_pdf():
 
         # ---- INFANZIA ----
         if is_infanzia and is_i_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_AA_I_FASCIA_PREFIX}' (Infanzia + I Fascia). {len(files_to_search)} candidati.")
         elif is_infanzia and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_AA_II_FASCIA_PREFIX}' (Infanzia + II Fascia). {len(files_to_search)} candidati.")
         elif is_infanzia and not fascia_richiesta:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX) or
-                                  f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_AA_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_AA_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_AA_I_FASCIA_PREFIX}' + '{ESTRAZIONE_AA_II_FASCIA_PREFIX}' (Infanzia - Tutte le fasce). {len(files_to_search)} candidati.")
 
         # ---- PRIMARIA ----
         elif is_primaria and is_i_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_EE_I_FASCIA_PREFIX}' (Primaria + I Fascia). {len(files_to_search)} candidati.")
         elif is_primaria and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_EE_II_FASCIA_PREFIX}' (Primaria + II Fascia). {len(files_to_search)} candidati.")
         elif is_primaria and not fascia_richiesta:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX) or
-                                  f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_EE_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_EE_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_EE_I_FASCIA_PREFIX}' + '{ESTRAZIONE_EE_II_FASCIA_PREFIX}' (Primaria - Tutte le fasce). {len(files_to_search)} candidati.")
 
         # ---- SECONDARIA I GRADO ----
         elif is_sec_i_ordine and is_i_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_MM_I_FASCIA_PREFIX}' (Sec I + I Fascia). {len(files_to_search)} candidati.")
         elif is_sec_i_ordine and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_MM_II_FASCIA_PREFIX}' (Sec I + II Fascia). {len(files_to_search)} candidati.")
         elif is_sec_i_ordine and not fascia_richiesta:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX) or
-                                  f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_MM_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_MM_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_MM_I_FASCIA_PREFIX}' + '{ESTRAZIONE_MM_II_FASCIA_PREFIX}' (Sec I - Tutte le fasce). {len(files_to_search)} candidati.")
 
         # ---- SECONDARIA II GRADO ----
         elif is_sec_ii and is_i_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' (Sec II + I Fascia). {len(files_to_search)} candidati.")
         elif is_sec_ii and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca SOLO in '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II + II Fascia). {len(files_to_search)} candidati.")
         elif is_sec_ii and not fascia_richiesta:
-            files_to_search = [f for f in root_files
-                               if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or
-                                  f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
             logger.info(f"[{codice_upper}] Ricerca in '{ESTRAZIONE_SS_I_FASCIA_PREFIX}' + '{ESTRAZIONE_SS_II_FASCIA_PREFIX}' (Sec II - Tutte le fasce). {len(files_to_search)} candidati.")
 
         # ---- FALLBACK: ricerca in root escludendo tutte le cartelle di estrazione ----
@@ -868,8 +814,7 @@ def genera_pdf():
                 ESTRAZIONE_MM_I_FASCIA_PREFIX, ESTRAZIONE_MM_II_FASCIA_PREFIX,
                 ESTRAZIONE_SS_I_FASCIA_PREFIX, ESTRAZIONE_SS_II_FASCIA_PREFIX,
             )
-            files_to_search = [f for f in root_files
-                               if not any(f.path.startswith(p) for p in all_prefixes)]
+            files_to_search = [f for f in root_files if not any(f.path.startswith(p) for p in all_prefixes)]
             logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle estrazioni fascia). {len(files_to_search)} candidati.")
 
         # ====================================================================
@@ -883,14 +828,12 @@ def genera_pdf():
             if f.name.startswith('~$'):
                 continue
             for cod_ric in codici_ricerca:
-                # Se è Scuola Sec II grado, normalizza il codice rimuovendo il dash (A-01 -> A001)
                 if is_sec_ii:
                     cod_ric_no_dash = cod_ric.replace('-', '')
                     if re.match(r'^A\d{2}$', cod_ric_no_dash):
                         cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
                     prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
                 else:
-                    # Per Sec I e Infanzia, usa il codice così com'è (A011, AM55, IRC, ADMM, ecc.)
                     prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
                 
                 if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
@@ -912,11 +855,6 @@ def genera_pdf():
             logger.warning(f"Nessun file trovato per il codice: {codice}")
             continue
 
-        # ====================================================================
-        # Intestazione PDF: mostra il nome della classe
-        # Per classi musicali: "AC56 - Clarinetto"
-        # Per altre classi: "A-12" o nome originale
-        # ====================================================================
         pdf.set_font("Helvetica", 'B', 12)
         if codice_upper in SEC_I_MUSICAL_NAMES:
             display_classe = f"Classe di Concorso: {codice} - {SEC_I_MUSICAL_NAMES[codice_upper]}"
@@ -1225,9 +1163,6 @@ def genera_pdf():
             pdf.cell(0, 10, text=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(5)
 
-    # ========================================================================
-    # RICALCOLO MEDIANA CORRETTA da tutti i punteggi raccolti per provincia
-    # ========================================================================
     import statistics
     for prov, scores in province_scores.items():
         if prov in stats_data and scores:
