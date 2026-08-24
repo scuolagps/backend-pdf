@@ -823,11 +823,11 @@ def genera_pdf():
             logger.info(f"[{codice_upper}] Ricerca in root (escluse cartelle estrazioni fascia). {len(files_to_search)} candidati.")
 
         # ====================================================================
+        # ====================================================================
         # Ricerca file di estrazione
         # ====================================================================
         file_da_elaborare = []
         nomi_file_visti = set()
-        logger.info(f"[{codice_upper}] Inizio analisi di {len(files_to_search)} file candidati. Fascia richiesta normalizzata: '{fascia_norm}'")
         
         for f in files_to_search:
             if hasattr(f, 'type') and f.type != 'file':
@@ -846,23 +846,22 @@ def genera_pdf():
                 
                 f_name_upper = f.name.upper()
                 
-                # Log di debug per ogni file e codice cercato
-                logger.info(f"  -> File: '{f.name}' | Prefix cercato: '{prefix}' | Inizia con prefix: {f_name_upper.startswith(prefix)}")
-                
                 if f_name_upper.startswith(prefix) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti:
                         break
+                    
                     if fascia_norm:
+                        # Prendiamo tutto ciò che sta dopo il codice (es. "EE_2_Fascia.csv" -> "EE_2_FASCIA")
                         file_fascia_part = f_name_upper[len(prefix):].replace('.CSV', '')
                         file_fascia_norm = normalize_fascia(file_fascia_part)
                         
-                        # Log di debug per il confronto fascia
-                        logger.info(f"     -> Estrazione fascia da nome file: '{file_fascia_part}' | Normalizzata: '{file_fascia_norm}' | Confronto con: '{fascia_norm}' | Match: {file_fascia_norm == fascia_norm}")
-                        
-                        if file_fascia_norm == fascia_norm:
+                        # Verifichiamo se la fascia richiesta è CONTENUTA nel nome del file
+                        # (es. cerchiamo "IIFASCIA" dentro "EEIIFASCIA")
+                        if fascia_norm in file_fascia_norm:
                             file_da_elaborare.append(f)
                             nomi_file_visti.add(f.name)
                     else:
+                        # Se non è richiesta una fascia specifica, prendiamo tutti i file del codice
                         file_da_elaborare.append(f)
                         nomi_file_visti.add(f.name)
                     break
