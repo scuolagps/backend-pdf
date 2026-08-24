@@ -636,10 +636,6 @@ def genera_bollettino():
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
-    
-    logger.info(f"=== BOLLETTINO: Nuova richiesta ===")
-    logger.info(f"Classi ricevute: {classi_selezionate}")
-    logger.info(f"Regioni: {regioni_richieste} | Province: {province_nomi} | Fascia: {fascia_richiesta}")
 
     if regioni_richieste and not province_nomi:
         for sigla, (region, nome) in PROVINCE_DATA.items():
@@ -656,8 +652,6 @@ def genera_bollettino():
     else:
         fascia_filter = ''
 
-    logger.info(f"1. Filtro fascia applicato (F1/F2): '{fascia_filter}'")
-
     codici_validi = []
     ordini_selezionati = set()
     for c in classi_selezionate:
@@ -667,9 +661,6 @@ def genera_bollettino():
         else:
             c_clean = c
         codici_validi.append(c_clean.split(' - ')[0].strip().upper())
-
-    logger.info(f"2. Ordini selezionati: {ordini_selezionati}")
-    logger.info(f"3. Codici validi estratti: {codici_validi}")
 
     prefixes = []
     if "infanzia" in ordini_selezionati:
@@ -681,23 +672,23 @@ def genera_bollettino():
     if "secondaria_ii" in ordini_selezionati:
         prefixes.append("Bollettini/SS/")
 
-    logger.info(f"4. Prefissi cartelle da cercare: {prefixes}")
-
     try:
         repo = g.get_repo(REPO_NAME)
-        logger.info("5. Connessione al repo stabilita. Scarico lista file...")
         root_files = get_all_repo_files(repo)
-        logger.info(f"6. Totale file nel repo: {len(root_files)}")
         
-        file_objs = [f for f in root_files if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv')]
-        logger.info(f"7. Trovati {len(file_objs)} file CSV nelle cartelle Bollettini selezionate.")
-        
-        if file_objs:
-            logger.info(f"   -> Primo file trovato: {file_objs[0].path}")
+        # Individua SOLO i file corrispondenti ai codici selezionati nelle cartelle giuste
+        file_objs = []
+        for codice in codici_validi:
+            for f in root_files:
+                if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv'):
+                    fname = f.name.upper()
+                    # Cerchiamo il file esatto (es. RISULTATO_ESTRAZIONE_ADEE.CSV)
+                    if fname == f"RISULTATO_ESTRAZIONE_{codice}.CSV":
+                        file_objs.append(f)
+                        break  # Trovato il file per questo codice, passa al prossimo codice
         
         if not file_objs:
-            logger.error("   -> NESSUN file trovato! Il percorso potrebbe essere errato.")
-            return jsonify({"error": "Nessun file bollettino trovato per gli ordini di scuola selezionati."}), 404
+            return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
             
         results = {}
         for file_obj in file_objs:
@@ -715,22 +706,30 @@ def genera_bollettino():
                 continue
 
             df.columns = [str(c).strip().upper() for c in df.columns]
-            
-            # Debug specifico per il file ADEE
-            if 'ADEE' in file_obj.path.upper():
-                logger.info(f"=== DEBUG FILE ADEE ===")
-                logger.info(f"Righe totali lette da CSV: {len(df)}")
-                logger.info(f"Colonne trovate: {list(df.columns)}")
-                if not df.empty:
-                    logger.info(f"Prima riga di dati -> CLASSE DI CONCORSO: '{df.iloc[0].get('CLASSE DI CONCORSO')}'")
-                logger.info(f"=======================")
-
             current_prov = None
             current_region = None
             current_prov_selected = False
             
             for _, row in df.iterrows():
+                val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
+                
+                if val_prov and val_prov not in ('nan', 'None'):
+                    for sigla, (region, nome) in PROVINCE_DATA.items():
+                        if val_prov.upper() == nome.upper():
+                            prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
+                            if (prov_set and prov_norm in prov_set) or \
+                               (not prov_set and reg_set and region.upper() in reg_set) or \
+                               (not prov_set and not reg_set):
+                                current_prov = nome
+                                current_region = region
+                                current_prov_selected = True
+                            else:
+                                current_prov = nome
+                                current_region = region
+                                current_prov_selected = False
+                            break
+                
                 if not val_classe or val_classe in ('nan', 'None'):
                     continue
                     
@@ -777,27 +776,9 @@ def genera_bollettino():
                         prov_data["nomine_f2"] += 1
                         if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
                             prov_data["min_f2"] = punt
-                            
-                elif not is_nomina:
-                    for sigla, (region, nome) in PROVINCE_DATA.items():
-                        if val_classe.upper() == nome.upper():
-                            prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
-                            if (prov_set and prov_norm in prov_set) or \
-                               (not prov_set and reg_set and region.upper() in reg_set) or \
-                               (not prov_set and not reg_set):
-                                current_prov = nome
-                                current_region = region
-                                current_prov_selected = True
-                            else:
-                                current_prov = nome
-                                current_region = region
-                                current_prov_selected = False
-                            break
-
-        logger.info(f"8. Elaborazione completata. Totale province nei results: {len(results)}")
 
     except Exception as e:
-        logger.error(f"ERRORE CRITICO: {str(e)}", exc_info=True)
+        logger.error(f"Errore critico lettura bollettino: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
     out_data = []
@@ -815,7 +796,6 @@ def genera_bollettino():
             "prob_f1": prob_f1, "prob_f2": prob_f2, "nomine_f1": r["nomine_f1"], "nomine_f2": r["nomine_f2"]
         })
         
-    logger.info(f"9. Dati finali da inviare: {len(out_data)} righe.")
     return jsonify({"data": out_data})
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
