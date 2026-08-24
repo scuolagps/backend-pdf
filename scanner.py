@@ -1298,13 +1298,16 @@ def genera_bollettino():
                 logger.error(f"Errore lettura bollettino {file_obj.path}: {e}")
                 continue
 
-            df.columns = [str(c).strip() for c in df.columns]
-            current_prov = None
-            current_region = None
-            current_prov_selected = False
-            
-            righe_elaborate = 0
-            righe_nomine_trovate = 0
+            # --- DEBUG INTESTAZIONI CSV ---
+            if file_obj.path.endswith('Risultato_Estrazione_ADEE.csv'):
+                logger.info(f"=== DEBUG COLONNE FILE ADEE ===")
+                logger.info(f"Intestazioni trovate: {list(df.columns)}")
+                if not df.empty:
+                    logger.info(f"Prima riga di dati (esempio):")
+                    for col_name, val in df.iloc[0].items():
+                        logger.info(f"  Colonna '{col_name}': {val}")
+                logger.info(f"=== FINE DEBUG COLONNE ===")
+            # -------------------------------
             
             for _, row in df.iterrows():
                 righe_elaborate += 1
