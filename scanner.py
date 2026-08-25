@@ -1110,7 +1110,7 @@ def genera_pdf():
     pdf_bytes = pdf.output()
     import base64
     pdf_base64 = base64.b64encode(bytes(pdf_bytes)).decode('utf-8')
-    logger.info(f"Generazione PDF completata. Stats inviate: {len(stats_data)} province.")
+    logger.info(f"Generazione PDF completata. Stats inviate per {len(stats_data)} classi.")
     return jsonify({"pdf_base64": pdf_base64, "stats": stats_data})
 
 
@@ -1249,8 +1249,9 @@ def genera_bollettino():
             codice = b_entry["codice"]
             file_obj = b_entry["file"]
             try:
-                # Usiamo requests per scaricare il contenuto reale e bypassare il problema Git LFS (unsupported encoding: none)
+                # Usiamo requests per scaricare il contenuto reale e bypassare il problema Git LFS
                 if hasattr(file_obj, 'download_url') and file_obj.download_url:
+                    logger.info(f"[BOLLETTINO] DEBUG: Downloading via download_url (bypass LFS)...")
                     response = requests.get(file_obj.download_url)
                     file_data = response.content
                 else:
@@ -1260,6 +1261,7 @@ def genera_bollettino():
                 csv_text = clean_csv_text(csv_text)
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
+                logger.info(f"[BOLLETTINO] DEBUG: Primi 100 caratteri del file: {csv_text[:100]}")
                 
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
                 logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali lette: {len(df)}")
