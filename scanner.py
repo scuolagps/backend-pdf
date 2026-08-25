@@ -3,6 +3,8 @@ import re
 import io
 import logging
 import requests
+import base64
+import statistics
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
 import pandas as pd
@@ -621,8 +623,180 @@ def get_all_repo_files(repo, path=""):
             files.append(content)
     return files
 
+# ====================================================================
+# ROUTE 1: GENERA PDF E STATISTICHE BASE
+# ====================================================================
+@app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
+def genera_pdf():
+    if request.method == 'OPTIONS':
+        return jsonify({"status": "ok"}), 200
+    if not g:
+        return jsonify({"error": "Server non configurato correttamente (Token GitHub mancante)."}), 500
+    
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Payload non valido."}), 400
+        
+    classi_selezionate = data.get('classi', [])
+    province_nomi = data.get('province', [])
+    regioni_richieste = data.get('regioni', [])
+    fascia_richiesta = data.get('fascia', '').strip()
+
+    if regioni_richieste and not province_nomi:
+        for sigla, (region, nome) in PROVINCE_DATA.items():
+            if region in regioni_richieste and nome not in province_nomi:
+                province_nomi.append(nome)
+                
+    prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
+    reg_set = {r.upper() for r in regioni_richieste}
+    
+    if fascia_richiesta.upper() == 'II_FASCIA': fascia_filter = 'F2'
+    elif fascia_richiesta.upper() == 'I_FASCIA': fascia_filter = 'F1'
+    else: fascia_filter = ''
+
+    codici_validi = []
+    ordini_selezionati = set()
+    for c in classi_selezionate:
+        if '|' in c:
+            ord, c_clean = c.split('|', 1)
+            ordini_selezionati.add(ord.strip().lower())
+        else:
+            c_clean = c
+        codici_validi.append(c_clean.split(' - ')[0].strip().upper())
+
+    grad_prefixes = []
+    if "infanzia" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_AA_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_AA_2_Fascia/")
+    if "primaria" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_EE_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_EE_2_Fascia/")
+    if "secondaria_i" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_MM_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_MM_2_Fascia/")
+    if "secondaria_ii" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_SS_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_SS_2_Fascia/")
+
+    try:
+        repo = g.get_repo(REPO_NAME)
+        root_files = get_all_repo_files(repo)
+        
+        grad_files = []
+        for codice in codici_validi:
+            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
+            possible_codes.add(codice)
+            for f in root_files:
+                if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
+                    fname = f.name.upper()
+                    if any(pc in fname for pc in possible_codes):
+                        grad_files.append(f)
+                        break
+
+        stats = {}
+        for file_obj in grad_files:
+            try:
+                file_data = requests.get(file_obj.download_url).content if hasattr(file_obj, 'download_url') and file_obj.download_url else file_obj.decoded_content
+                csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                csv_text = clean_csv_text(csv_text)
+                df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                df.columns = [str(c).strip().upper() for c in df.columns]
+                
+                current_prov = None
+                current_region = None
+                current_prov_selected = False
+                
+                for _, row in df.iterrows():
+                    val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
+                    if val_prov and val_prov.upper() not in ('NAN', 'NONE', ''):
+                        for sigla, (region, nome) in PROVINCE_DATA.items():
+                            if val_prov.upper() == nome.upper() or to_sigla(val_prov) == sigla:
+                                prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
+                                if (prov_set and prov_norm in prov_set) or \
+                                   (not prov_set and reg_set and region.upper() in reg_set) or \
+                                   (not prov_set and not reg_set):
+                                    current_prov = nome
+                                    current_region = region
+                                    current_prov_selected = True
+                                else:
+                                    current_prov = nome
+                                    current_region = region
+                                    current_prov_selected = False
+                                break
+                    
+                    val_cog = str(row.get('COGNOME', '')).strip()
+                    if not val_cog or val_cog.upper() in ('NAN', 'NONE', '') or not current_prov_selected:
+                        continue
+                        
+                    punt = pulisci_punteggio(row.get('PUNTEGGIO TOTALE', row.get('PUNTEGGIO', '')))
+                    if punt is None: continue
+                    
+                    if current_prov not in stats:
+                        stats[current_prov] = {"regione": current_region, "scores": []}
+                    stats[current_prov]["scores"].append(punt)
+                    
+            except Exception as e:
+                logger.error(f"Errore lettura graduatoria {file_obj.path}: {e}")
+                continue
+
+        out_stats = {}
+        for prov, data_val in stats.items():
+            scores = data_val["scores"]
+            if not scores: continue
+            out_stats[prov] = {
+                "regione": data_val["regione"],
+                "candidati": len(scores),
+                "top": max(scores),
+                "bottom": min(scores),
+                "median": statistics.median(scores),
+                "scuole": 0, 
+                "rapporto": 0
+            }
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", 'B', 16)
+        pdf.cell(0, 10, "Estrazione Dati Scolastici", 0, 1, 'C')
+        pdf.ln(5)
+        
+        pdf.set_font("Helvetica", 'B', 10)
+        pdf.set_fill_color(0, 85, 165)
+        pdf.set_text_color(255, 255, 255)
+        headers = ["Provincia", "Candidati", "P. Alto", "P. Basso", "Mediana"]
+        col_widths = [50, 35, 35, 35, 35]
+        for i, h in enumerate(headers):
+            pdf.cell(col_widths[i], 8, h, 1, 0, 'C', True)
+        pdf.ln()
+        
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Helvetica", '', 10)
+        for prov, data_val in out_stats.items():
+            pdf.cell(col_widths[0], 8, str(prov), 1)
+            pdf.cell(col_widths[1], 8, str(data_val["candidati"]), 1, 0, 'C')
+            pdf.cell(col_widths[2], 8, str(data_val["top"]), 1, 0, 'C')
+            pdf.cell(col_widths[3], 8, str(data_val["bottom"]), 1, 0, 'C')
+            pdf.cell(col_widths[4], 8, str(data_val["median"]), 1, 0, 'C')
+            pdf.ln()
+
+        pdf_output = pdf.output(dest='S')
+        if isinstance(pdf_output, bytes):
+            pdf_base64 = base64.b64encode(pdf_output).decode('utf-8')
+        else:
+            pdf_base64 = base64.b64encode(pdf_output.encode('latin-1')).decode('utf-8')
+
+        return jsonify({"pdf_base64": pdf_base64, "stats": out_stats})
+
+    except Exception as e:
+        logger.error(f"Errore critico genera_pdf: {str(e)}", exc_info=True)
+        return jsonify({"error": f"Errore generazione PDF: {str(e)}"}), 500
+
+
+# ====================================================================
+# ROUTE 2: GENERA BOLLETTINO (che hai già nel tuo file)
+# ====================================================================
 @app.route('/genera-bollettino', methods=['POST', 'OPTIONS'])
 def genera_bollettino():
+    # ... (il resto del tuo codice da 886 righe che già possiedi)
     if request.method == 'OPTIONS':
         return jsonify({"status": "ok"}), 200
     if not g:
@@ -704,7 +878,7 @@ def genera_bollettino():
                         break
         
         # 2. INDIVIDUA FILE GRADUATORIE (PER OTTENERE IL NUMERO DI ISCRITTI REALI)
-        grad_files = []
+        grad_files_set = set()
         for codice in codici_validi:
             possible_codes = CODICI_EQUIVALENTI.get(codice, set())
             possible_codes.add(codice)
@@ -712,8 +886,10 @@ def genera_bollettino():
                 if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
                     fname = f.name.upper()
                     if any(pc in fname for pc in possible_codes):
-                        grad_files.append(f)
-                        break
+                        grad_files_set.add(f)
+                        # RIMOSSO IL BREAK: ora cerca anche i file della II fascia!
+        
+        grad_files = list(grad_files_set)
 
         if not bollettino_files:
             return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
@@ -818,7 +994,13 @@ def genera_bollettino():
                         contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
                         cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
                         nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
-                        candidato_id = f"{cog}_{nom}"
+                        codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
+                        
+                        # Se il nome è vuoto (anonimo), non raggrupparli tutti come un'unica persona!
+                        if cog in ('', 'NAN', 'NONE') or nom in ('', 'NAN', 'NONE'):
+                            candidato_id = f"anonimo_{pos}_{codice_scuola}_{punt}"
+                        else:
+                            candidato_id = f"{cog}_{nom}"
                     except (ValueError, TypeError):
                         continue
                         
