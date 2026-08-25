@@ -1249,15 +1249,15 @@ def genera_bollettino():
             codice = b_entry["codice"]
             file_obj = b_entry["file"]
             try:
-                if hasattr(file_obj, 'download_url') and file_obj.download_url:
-                    response = requests.get(file_obj.download_url)
-                    file_data = response.content
-                else:
-                    file_data = file_obj.decoded_content
+                # Usiamo direttamente l'API di Github per scaricare il contenuto grezzo
+                file_content = repo.get_contents(file_obj.path)
+                file_data = file_content.decoded_content
+                
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
+                logger.info(f"[BOLLETTINO] DEBUG: Primi 100 caratteri del file: {csv_text[:100]}")
                 
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
                 logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali lette: {len(df)}")
