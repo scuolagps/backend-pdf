@@ -1115,11 +1115,10 @@ def genera_pdf():
 
 
 # ====================================================================
-# ROUTE 2: GENERA BOLLETTINO (che hai già nel tuo file)
+# ROUTE 2: GENERA BOLLETTINO E METRICHE AVANZATE (RAGGRUPPATO PER CLASSE)
 # ====================================================================
 @app.route('/genera-bollettino', methods=['POST', 'OPTIONS'])
 def genera_bollettino():
-    # ... (il resto del tuo codice da 886 righe che già possiedi)
     if request.method == 'OPTIONS':
         return jsonify({"status": "ok"}), 200
     if not g:
@@ -1142,12 +1141,9 @@ def genera_bollettino():
     prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
     reg_set = {r.upper() for r in regioni_richieste}
     
-    if fascia_richiesta.upper() == 'II_FASCIA':
-        fascia_filter = 'F2'
-    elif fascia_richiesta.upper() == 'I_FASCIA':
-        fascia_filter = 'F1'
-    else:
-        fascia_filter = ''
+    if fascia_richiesta.upper() == 'II_FASCIA': fascia_filter = 'F2'
+    elif fascia_richiesta.upper() == 'I_FASCIA': fascia_filter = 'F1'
+    else: fascia_filter = ''
 
     codici_validi = []
     ordini_selezionati = set()
@@ -1160,16 +1156,11 @@ def genera_bollettino():
         codici_validi.append(c_clean.split(' - ')[0].strip().upper())
 
     prefixes = []
-    if "infanzia" in ordini_selezionati:
-        prefixes.append("Bollettini/AA/")
-    if "primaria" in ordini_selezionati:
-        prefixes.append("Bollettini/EE/")
-    if "secondaria_i" in ordini_selezionati:
-        prefixes.append("Bollettini/MM/")
-    if "secondaria_ii" in ordini_selezionati:
-        prefixes.append("Bollettini/SS/")
+    if "infanzia" in ordini_selezionati: prefixes.append("Bollettini/AA/")
+    if "primaria" in ordini_selezionati: prefixes.append("Bollettini/EE/")
+    if "secondaria_i" in ordini_selezionati: prefixes.append("Bollettini/MM/")
+    if "secondaria_ii" in ordini_selezionati: prefixes.append("Bollettini/SS/")
 
-    # Cartelle di estrazione graduatorie per ricavare il totale iscritti reale
     grad_prefixes = []
     if "infanzia" in ordini_selezionati:
         if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_AA_1_Fascia/")
@@ -1188,19 +1179,26 @@ def genera_bollettino():
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
         
-        # 1. INDIVIDUA FILE BOLLETTINO
+        # 1. INDIVIDUA FILE BOLLETTINO (per codice)
         bollettino_files = []
         for codice in codici_validi:
             possible_codes = CODICI_EQUIVALENTI.get(codice, set())
             possible_codes.add(codice)
+            found = False
             for f in root_files:
                 if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv'):
                     fname = f.name.upper()
                     if any(f"_{pc}.CSV" in fname for pc in possible_codes):
-                        bollettino_files.append(f)
+                        bollettino_files.append({"codice": codice, "file": f})
+                        found = True
                         break
+            if not found:
+                logger.warning(f"Nessun file bollettino trovato per il codice: {codice}. Verrà saltato.")
         
-        # 2. INDIVIDUA FILE GRADUATORIE (PER OTTENERE IL NUMERO DI ISCRITTI REALI)
+        if not bollettino_files:
+            return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
+
+        # 2. INDIVIDUA FILE GRADUATORIE
         grad_files_set = set()
         for codice in codici_validi:
             possible_codes = CODICI_EQUIVALENTI.get(codice, set())
@@ -1210,14 +1208,10 @@ def genera_bollettino():
                     fname = f.name.upper()
                     if any(pc in fname for pc in possible_codes):
                         grad_files_set.add(f)
-                        # RIMOSSO IL BREAK: ora cerca anche i file della II fascia!
         
         grad_files = list(grad_files_set)
 
-        if not bollettino_files:
-            return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
-
-        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA DAI FILE GRADUATORIA
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA
         total_candidates = {}
         for file_obj in grad_files:
             try:
@@ -1244,9 +1238,11 @@ def genera_bollettino():
                 logger.error(f"Errore lettura graduatoria {file_obj.path}: {e}")
                 continue
 
-        # 4. ELABORA BOLLETTINO PER NOMINE, CUT-OFF E POSIZIONI
+        # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
         results = {}
-        for file_obj in bollettino_files:
+        for b_entry in bollettino_files:
+            codice = b_entry["codice"]
+            file_obj = b_entry["file"]
             try:
                 if hasattr(file_obj, 'download_url') and file_obj.download_url:
                     response = requests.get(file_obj.download_url)
@@ -1265,11 +1261,12 @@ def genera_bollettino():
             current_region = None
             current_prov_selected = False
             
+            if codice not in results: results[codice] = {}
+            
             for _, row in df.iterrows():
                 val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 
-                # Ignora righe "NOMINA N 1" come richiesto
                 if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
                     continue
                 
@@ -1291,96 +1288,92 @@ def genera_bollettino():
                 
                 if not val_classe or val_classe in ('nan', 'None'):
                     continue
+                if not current_prov_selected or current_prov is None:
+                    continue
                     
-                is_data = any(cod in val_classe.upper() for cod in codici_validi)
+                fascia_raw = str(row.get('FASCIA', '')).strip().upper()
+                if fascia_raw not in ('F1', 'F2'):
+                    continue
+                if fascia_filter and fascia_raw != fascia_filter:
+                    continue
+                    
+                try:
+                    pos_val = row.get('POSIZIONE')
+                    if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
+                        continue
+                    pos = int(float(pos_val))
+                    punt_val = row.get('PUNTEGGIO')
+                    punt = pulisci_punteggio(punt_val)
+                    if punt is None:
+                        continue
+                        
+                    contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
+                    cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
+                    nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
+                    codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
+                    if cog in ('', 'NAN', 'NONE') or nom in ('', 'NAN', 'NONE'):
+                        candidato_id = f"anonimo_{pos}_{codice_scuola}_{punt}"
+                    else:
+                        candidato_id = f"{cog}_{nom}"
+                except (ValueError, TypeError):
+                    continue
+                    
+                if current_prov not in results[codice]:
+                    results[codice][current_prov] = {
+                        "regione": current_region, 
+                        "nomine_totali": 0, "nominati_univoci": set(),
+                        "max_posizione": 0, 
+                        "min_31_08": None, "min_30_06": None, "min_spezzoni": None
+                    }
+                    
+                prov_data = results[codice][current_prov]
+                prov_data["nomine_totali"] += 1
+                prov_data["nominati_univoci"].add(candidato_id)
                 
-                if is_data:
-                    if not current_prov_selected or current_prov is None:
-                        continue
-                        
-                    fascia_raw = str(row.get('FASCIA', '')).strip().upper()
-                    if fascia_raw not in ('F1', 'F2'):
-                        continue
-                    if fascia_filter and fascia_raw != fascia_filter:
-                        continue
-                        
-                    try:
-                        pos_val = row.get('POSIZIONE')
-                        if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
-                            continue
-                        pos = int(float(pos_val))
-                        punt_val = row.get('PUNTEGGIO')
-                        punt = pulisci_punteggio(punt_val)
-                        if punt is None:
-                            continue
-                            
-                        contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
-                        cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
-                        nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
-                        codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
-                        
-                        # Se il nome è vuoto (anonimo), non raggrupparli tutti come un'unica persona!
-                        if cog in ('', 'NAN', 'NONE') or nom in ('', 'NAN', 'NONE'):
-                            candidato_id = f"anonimo_{pos}_{codice_scuola}_{punt}"
-                        else:
-                            candidato_id = f"{cog}_{nom}"
-                    except (ValueError, TypeError):
-                        continue
-                        
-                    if current_prov not in results:
-                        results[current_prov] = {
-                            "regione": current_region, 
-                            "nomine_totali": 0, "nominati_univoci": set(),
-                            "max_posizione": 0, 
-                            "min_31_08": None, "min_30_06": None, "min_spezzoni": None
-                        }
-                        
-                    prov_data = results[current_prov]
-                    prov_data["nomine_totali"] += 1
-                    prov_data["nominati_univoci"].add(candidato_id)
+                if pos > prov_data["max_posizione"]:
+                    prov_data["max_posizione"] = pos
                     
-                    if pos > prov_data["max_posizione"]:
-                        prov_data["max_posizione"] = pos
-                        
-                    if 'ANNUALE' in contratto:
-                        if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
-                            prov_data["min_31_08"] = punt
-                    elif 'TERMINE' in contratto or 'FINO AL' in contratto:
-                        if prov_data["min_30_06"] is None or punt < prov_data["min_30_06"]:
-                            prov_data["min_30_06"] = punt
-                    elif 'SPEZZONE' in contratto:
-                        if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
-                            prov_data["min_spezzoni"] = punt
+                if 'ANNUALE' in contratto:
+                    if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
+                        prov_data["min_31_08"] = punt
+                elif 'TERMINE' in contratto or 'FINO AL' in contratto:
+                    if prov_data["min_30_06"] is None or punt < prov_data["min_30_06"]:
+                        prov_data["min_30_06"] = punt
+                elif 'SPEZZONE' in contratto:
+                    if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
+                        prov_data["min_spezzoni"] = punt
 
     except Exception as e:
         logger.error(f"Errore critico lettura bollettino: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
-    # 5. CALCOLO METRICHE FINALI E OUTPUT
-    out_data = []
-    for prov, r in results.items():
-        tot_cand = total_candidates.get(prov, 0)
-        nominati_univoci = len(r["nominati_univoci"])
-        
-        assorbimento = round((nominati_univoci / tot_cand) * 100, 2) if tot_cand > 0 else 0
-        max_pos = r["max_posizione"]
-        rinuncia = round(((max_pos - nominati_univoci) / max_pos) * 100, 2) if max_pos > 0 else 0
-        
-        def fmt(val):
-            if val is None: return "N/D"
-            s = str(val).replace('.', ',')
-            if s.endswith(',0'): s = s.replace(',0', '')
-            return s
+    # 5. CALCOLO METRICHE E OUTPUT RAGGRUPPATO
+    out_data = {}
+    for codice, res in results.items():
+        out_data[codice] = []
+        for prov, r in res.items():
+            tot_cand = total_candidates.get(prov, 0)
+            nominati_univoci = len(r["nominati_univoci"])
             
-        out_data.append({
-            "regione": r['regione'], "provincia": prov, 
-            "candidati_totali": tot_cand, "nomine_totali": r["nomine_totali"],
-            "nominati_univoci": nominati_univoci, "assorbimento": assorbimento,
-            "max_posizione": max_pos, "rinuncia": rinuncia,
-            "cut_31_08": fmt(r["min_31_08"]), 
-            "cut_30_06": fmt(r["min_30_06"]), 
-            "cut_spezzoni": fmt(r["min_spezzoni"])
-        })
+            assorbimento = round((nominati_univoci / tot_cand) * 100, 2) if tot_cand > 0 else 0
+            max_pos = r["max_posizione"]
+            rinuncia = round(((max_pos - nominati_univoci) / max_pos) * 100, 2) if max_pos > 0 else 0
+            
+            def fmt(val):
+                if val is None: return "N/D"
+                s = str(val).replace('.', ',')
+                if s.endswith(',0'): s = s.replace(',0', '')
+                return s
+                
+            out_data[codice].append({
+                "regione": r['regione'], "provincia": prov, 
+                "candidati_totali": tot_cand, "nomine_totali": r["nomine_totali"],
+                "nominati_univoci": nominati_univoci, "assorbimento": assorbimento,
+                "max_posizione": max_pos, "rinuncia": rinuncia,
+                "cut_31_08": fmt(r["min_31_08"]), 
+                "cut_30_06": fmt(r["min_30_06"]), 
+                "cut_spezzoni": fmt(r["min_spezzoni"])
+            })
         
     return jsonify({"data": out_data})
 
