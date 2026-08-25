@@ -762,21 +762,24 @@ def genera_pdf():
         is_i_fascia_selected = (fascia_upper == "I_FASCIA" or fascia_upper == "1_FASCIA" or fascia_upper == "IFASCIA")
         is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or fascia_upper == "2_FASCIA" or fascia_upper == "IIFASCIA")
 
-        if is_sec_ii and is_i_fascia_selected:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
-        elif is_sec_ii and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
-        elif is_sec_ii and not fascia_richiesta:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
-        elif is_sec_i_codice and is_i_fascia_selected:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
-        elif is_sec_i_codice and is_ii_fascia_selected:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
-        elif is_sec_i_codice and not fascia_richiesta:
-            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+        # Mappa i prefissi corretti in base all'ordine di scuola
+        ordine_to_prefix = {
+            "infanzia": ("Estrazione_AA_1_Fascia/", "Estrazione_AA_2_Fascia/"),
+            "primaria": ("Estrazione_EE_1_Fascia/", "Estrazione_EE_2_Fascia/"),
+            "secondaria_i": ("Estrazione_MM_1_Fascia/", "Estrazione_MM_2_Fascia/"),
+            "secondaria_ii": ("Estrazione_SS_1_Fascia/", "Estrazione_SS_2_Fascia/")
+        }
+        prefixes = ordine_to_prefix.get(ordine_classe, ("", ""))
+        f1_prefix, f2_prefix = prefixes
+        
+        if is_i_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(f1_prefix)]
+        elif is_ii_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(f2_prefix)]
+        elif not fascia_richiesta:
+            files_to_search = [f for f in root_files if f.path.startswith(f1_prefix) or f.path.startswith(f2_prefix)]
         else:
-            files_to_search = [f for f in root_files if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
-
+            files_to_search = [f for f in root_files if not f.path.startswith(f1_prefix) and not f.path.startswith(f2_prefix)]
         file_da_elaborare = []
         nomi_file_visti = set()
         for f in files_to_search:
