@@ -624,7 +624,8 @@ def get_all_repo_files(repo, path=""):
     return files
 
 # ====================================================================
-# ROUTE 1: GENERA PDF E STATISTICHE BASE
+# ====================================================================
+# ROUTE 1: GENERA PDF E STATISTICHE BASE (VERSIONE COMPLETA ORIGINALE)
 # ====================================================================
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
@@ -632,161 +633,482 @@ def genera_pdf():
         return jsonify({"status": "ok"}), 200
     if not g:
         return jsonify({"error": "Server non configurato correttamente (Token GitHub mancante)."}), 500
-    
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Payload non valido."}), 400
-        
-    classi_selezionate = data.get('classi', [])
+    classi_selezionate = data.get('classi')
     province_nomi = data.get('province', [])
     regioni_richieste = data.get('regioni', [])
     fascia_richiesta = data.get('fascia', '').strip()
-
+    anno_richiesto = data.get('anno', 'N/D').strip()
+    if not isinstance(province_nomi, list) or not isinstance(regioni_richieste, list):
+        return jsonify({"error": "Formato regioni/province non valido."}), 400
     if regioni_richieste and not province_nomi:
         for sigla, (region, nome) in PROVINCE_DATA.items():
             if region in regioni_richieste and nome not in province_nomi:
                 province_nomi.append(nome)
-                
-    prov_set = {p.upper().replace(" ", "").replace("'", "").replace("-", "") for p in province_nomi}
-    reg_set = {r.upper() for r in regioni_richieste}
-    
-    if fascia_richiesta.upper() == 'II_FASCIA': fascia_filter = 'F2'
-    elif fascia_richiesta.upper() == 'I_FASCIA': fascia_filter = 'F1'
-    else: fascia_filter = ''
-
+    if not isinstance(classi_selezionate, list) or not classi_selezionate:
+        return jsonify({"error": "Nessuna classe selezionata."}), 400
+    if len(classi_selezionate) > MAX_CLASSI:
+        return jsonify({"error": f"Numero massimo di classi consentito: {MAX_CLASSI}"}), 400
+        
+    province_sigle = []
+    for prov in province_nomi:
+        sigla = PROVINCE_SIGLE.get(prov)
+        if sigla:
+            province_sigle.append(sigla)
+            
     codici_validi = []
-    ordini_selezionati = set()
-    for c in classi_selezionate:
-        if '|' in c:
-            ord, c_clean = c.split('|', 1)
-            ordini_selezionati.add(ord.strip().lower())
-        else:
-            c_clean = c
-        codici_validi.append(c_clean.split(' - ')[0].strip().upper())
+    for codice in classi_selezionate:
+        identificativo = codice.split(' - ')[0].strip()
+        if not identificativo:
+            return jsonify({"error": "Uno o più codici classe non sono validi."}), 400
+        codici_validi.append(identificativo)
 
-    grad_prefixes = []
-    if "infanzia" in ordini_selezionati:
-        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_AA_1_Fascia/")
-        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_AA_2_Fascia/")
-    if "primaria" in ordini_selezionati:
-        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_EE_1_Fascia/")
-        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_EE_2_Fascia/")
-    if "secondaria_i" in ordini_selezionati:
-        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_MM_1_Fascia/")
-        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_MM_2_Fascia/")
-    if "secondaria_ii" in ordini_selezionati:
-        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_SS_1_Fascia/")
-        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_SS_2_Fascia/")
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=10)
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, text=sanitize_for_fpdf("Graduatorie provinciali di supplenza"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    pdf.set_font("Helvetica", size=10)
+    safe_anno = sanitize_for_fpdf(anno_richiesto.upper() if anno_richiesto != 'N/D' else 'N/D')
+    pdf.cell(0, 10, text=f"Anno: {safe_anno}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    safe_regioni = sanitize_for_fpdf(", ".join(regioni_richieste).upper() if regioni_richieste else 'TUTTE')
+    safe_province = sanitize_for_fpdf(", ".join(province_nomi).upper() if province_nomi else 'TUTTE')
+    filtro_luogo = f"Regioni: {safe_regioni} | Province: {safe_province}"
+    pdf.cell(0, 10, text=filtro_luogo, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    pdf.ln(5)
 
+    trovato_almeno_uno = False
+    stats_data = {}
+    province_scores = {}
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
-        
-        grad_files = []
-        for codice in codici_validi:
-            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
-            possible_codes.add(codice)
-            for f in root_files:
-                if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
-                    fname = f.name.upper()
-                    if any(pc in fname for pc in possible_codes):
-                        grad_files.append(f)
-                        break
-
-        stats = {}
-        for file_obj in grad_files:
-            try:
-                file_data = requests.get(file_obj.download_url).content if hasattr(file_obj, 'download_url') and file_obj.download_url else file_obj.decoded_content
-                csv_text = file_data.decode('utf-8-sig', errors='ignore')
-                csv_text = clean_csv_text(csv_text)
-                df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
-                df.columns = [str(c).strip().upper() for c in df.columns]
-                
-                current_prov = None
-                current_region = None
-                current_prov_selected = False
-                
-                for _, row in df.iterrows():
-                    val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
-                    if val_prov and val_prov.upper() not in ('NAN', 'NONE', ''):
-                        for sigla, (region, nome) in PROVINCE_DATA.items():
-                            if val_prov.upper() == nome.upper() or to_sigla(val_prov) == sigla:
-                                prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
-                                if (prov_set and prov_norm in prov_set) or \
-                                   (not prov_set and reg_set and region.upper() in reg_set) or \
-                                   (not prov_set and not reg_set):
-                                    current_prov = nome
-                                    current_region = region
-                                    current_prov_selected = True
-                                else:
-                                    current_prov = nome
-                                    current_region = region
-                                    current_prov_selected = False
-                                break
-                    
-                    val_cog = str(row.get('COGNOME', '')).strip()
-                    if not val_cog or val_cog.upper() in ('NAN', 'NONE', '') or not current_prov_selected:
-                        continue
-                        
-                    punt = pulisci_punteggio(row.get('PUNTEGGIO TOTALE', row.get('PUNTEGGIO', '')))
-                    if punt is None: continue
-                    
-                    if current_prov not in stats:
-                        stats[current_prov] = {"regione": current_region, "scores": []}
-                    stats[current_prov]["scores"].append(punt)
-                    
-            except Exception as e:
-                logger.error(f"Errore lettura graduatoria {file_obj.path}: {e}")
-                continue
-
-        out_stats = {}
-        for prov, data_val in stats.items():
-            scores = data_val["scores"]
-            if not scores: continue
-            out_stats[prov] = {
-                "regione": data_val["regione"],
-                "candidati": len(scores),
-                "top": max(scores),
-                "bottom": min(scores),
-                "median": statistics.median(scores),
-                "scuole": 0, 
-                "rapporto": 0
-            }
-
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(0, 10, "Estrazione Dati Scolastici", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-        pdf.ln(5)
-        
-        pdf.set_font("Helvetica", 'B', 10)
-        pdf.set_fill_color(0, 85, 165)
-        pdf.set_text_color(255, 255, 255)
-        headers = ["Provincia", "Candidati", "P. Alto", "P. Basso", "Mediana"]
-        col_widths = [50, 35, 35, 35, 35]
-        for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 8, h, border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
-        pdf.ln()
-        
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Helvetica", '', 10)
-        for prov, data_val in out_stats.items():
-            pdf.cell(col_widths[0], 8, str(prov), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
-            pdf.cell(col_widths[1], 8, str(data_val["candidati"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-            pdf.cell(col_widths[2], 8, str(data_val["top"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-            pdf.cell(col_widths[3], 8, str(data_val["bottom"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-            pdf.cell(col_widths[4], 8, str(data_val["median"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
-            pdf.ln()
-
-        # Corretto per gestire bytearray e rimuovere il deprecation warning
-        pdf_output = pdf.output()
-        pdf_base64 = base64.b64encode(bytes(pdf_output)).decode('utf-8')
-
-        return jsonify({"pdf_base64": pdf_base64, "stats": out_stats})
-
+        logger.info(f"Trovati {len(root_files)} file totali nel repository.")
     except Exception as e:
-        logger.error(f"Errore critico genera_pdf: {str(e)}", exc_info=True)
-        return jsonify({"error": f"Errore generazione PDF: {str(e)}"}), 500
+        return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
+
+    dizionario_scuole_altro = SCUOLE_FALLBACK
+
+    logger.info(f"Regioni richieste: {regioni_richieste}")
+    logger.info(f"Province nomi ricevute: {province_nomi}")
+    
+    province_sigle = []
+    for prov in province_nomi:
+        sigla = PROVINCE_SIGLE.get(prov)
+        if sigla:
+            province_sigle.append(sigla)
+        else:
+            logger.warning(f"Provincia '{prov}' NON trovata in PROVINCE_SIGLE!")
+    
+    logger.info(f"Province sigle finali: {province_sigle}")
+
+    for codice_raw in codici_validi:
+        if '|' in codice_raw:
+            ordine_classe, codice = codice_raw.split('|', 1)
+            ordine_classe = ordine_classe.strip().lower()
+        else:
+            ordine_classe = None
+            codice = codice_raw
+
+        codice_upper = codice.upper()
+        fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
+
+        is_sec_ii = (ordine_classe == "secondaria_ii")
+
+        if is_sec_ii:
+            codici_ricerca = {codice_upper}
+            if codice_upper == "A001": codici_ricerca.add("A017")
+            elif codice_upper == "ADSS": codici_ricerca.add("A030")
+            elif codice_upper == "A027": codici_ricerca.add("A031")
+            elif codice_upper == "A054": codici_ricerca.add("A076")
+            if '-' in codice_upper:
+                cod_no_dash = codice_upper.replace('-', '')
+                codici_ricerca.add(cod_no_dash)
+                if re.match(r'^A\d{2}$', cod_no_dash):
+                    codici_ricerca.add('A0' + cod_no_dash[-2:])
+        else:
+            codici_ricerca = CODICI_EQUIVALENTI.get(codice_upper, {codice_upper})
+        
+        logger.info(f"[{codice_upper}] Codici ricerca: {codici_ricerca} | Ordine: {ordine_classe}")
+
+        if is_sec_ii:
+            csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper)
+            if csv_scuole is not None:
+                scuole_dict = csv_scuole
+            else:
+                scuole_dict = dizionario_scuole_altro
+        elif codice_upper == "ADMM":
+            scuole_dict = get_scuole_dict(repo, is_musical=False)
+        elif codice_upper in SEC_I_MUSICAL_CLASSI:
+            scuole_dict = get_scuole_dict(repo, is_musical=True)
+        elif codice_upper in SEC_I_CLASSI or codice_upper in SEC_I_CSV_FILE_MAP:
+            csv_scuole = get_scuole_dict_from_csv(repo, codice_upper)
+            if csv_scuole is not None:
+                scuole_dict = csv_scuole
+            else:
+                scuole_dict = dizionario_scuole_altro
+        else:
+            scuole_dict = dizionario_scuole_altro
+
+        is_sec_i_codice = (not is_sec_ii and (
+                           codice_upper in SEC_I_CLASSI or
+                           codice_upper in SEC_I_MUSICAL_CLASSI or
+                           codice_upper in SEC_I_CSV_FILE_MAP or
+                           codice_upper == "ADMM"))
+        fascia_upper = (fascia_richiesta or "").upper().strip()
+        is_i_fascia_selected = (fascia_upper == "I_FASCIA" or fascia_upper == "1_FASCIA" or fascia_upper == "IFASCIA")
+        is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or fascia_upper == "2_FASCIA" or fascia_upper == "IIFASCIA")
+
+        if is_sec_ii and is_i_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX)]
+        elif is_sec_ii and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+        elif is_sec_ii and not fascia_richiesta:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+        elif is_sec_i_codice and is_i_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX)]
+        elif is_sec_i_codice and is_ii_fascia_selected:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+        elif is_sec_i_codice and not fascia_richiesta:
+            files_to_search = [f for f in root_files if f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) or f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX)]
+        else:
+            files_to_search = [f for f in root_files if not f.path.startswith(ESTRAZIONE_I_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_II_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_SS_I_FASCIA_PREFIX) and not f.path.startswith(ESTRAZIONE_SS_II_FASCIA_PREFIX)]
+
+        file_da_elaborare = []
+        nomi_file_visti = set()
+        for f in files_to_search:
+            if hasattr(f, 'type') and f.type != 'file': continue
+            if f.name.startswith('~$'): continue
+            for cod_ric in codici_ricerca:
+                if is_sec_ii:
+                    cod_ric_no_dash = cod_ric.replace('-', '')
+                    if re.match(r'^A\d{2}$', cod_ric_no_dash):
+                        cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
+                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
+                else:
+                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+                
+                if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
+                    if f.name in nomi_file_visti: break
+                    if fascia_norm:
+                        file_fascia_part = f.name.upper()[len(prefix):].replace('.CSV', '')
+                        file_fascia_norm = normalize_string(file_fascia_part)
+                        if file_fascia_norm == fascia_norm:
+                            file_da_elaborare.append(f)
+                            nomi_file_visti.add(f.name)
+                    else:
+                        file_da_elaborare.append(f)
+                        nomi_file_visti.add(f.name)
+                    break
+
+        if not file_da_elaborare:
+            logger.warning(f"Nessun file trovato per il codice: {codice}")
+            continue
+
+        pdf.set_font("Helvetica", 'B', 12)
+        if codice_upper in SEC_I_MUSICAL_NAMES:
+            display_classe = f"Classe di Concorso: {codice} - {SEC_I_MUSICAL_NAMES[codice_upper]}"
+        else:
+            display_classe = f"Classe di Concorso: {codice}"
+        pdf.cell(0, 10, text=sanitize_for_fpdf(display_classe), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+
+        try:
+            lista_dati = []
+            for file_trovato in file_da_elaborare:
+                try:
+                    if hasattr(file_trovato, 'download_url') and file_trovato.download_url:
+                        response = requests.get(file_trovato.download_url)
+                        file_data = response.content
+                    else:
+                        file_content = repo.get_contents(file_trovato.path)
+                        file_data = file_content.decoded_content
+                    csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                    csv_text = clean_csv_text(csv_text)
+                    try:
+                        csv_io = io.StringIO(csv_text)
+                        df_temp = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True)
+                    except Exception as e:
+                        logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
+                        continue
+                    fascia_nome = "DETTAGLI"
+                    for cod_ric in codici_ricerca:
+                        if cod_ric in file_trovato.name:
+                            parti = file_trovato.name.split(cod_ric)
+                            if len(parti) > 1:
+                                fascia_nome = parti[-1].replace("_", " ").replace(".csv", "").strip().upper()
+                                break
+                    if not fascia_nome: fascia_nome = "DETTAGLI"
+                    lista_dati.append((df_temp, fascia_nome))
+                except Exception as e:
+                    logger.error(f"Errore lettura file {file_trovato.name}: {str(e)}")
+            if not lista_dati: continue
+
+            def get_fascia_order(fascia_str):
+                f = str(fascia_str).upper()
+                if 'I FASCIA' in f or '1 FASCIA' in f: return 0
+                if 'II FASCIA' in f or '2 FASCIA' in f: return 1
+                if 'III FASCIA' in f or '3 FASCIA' in f: return 2
+                return 3
+            lista_dati.sort(key=lambda x: get_fascia_order(x[1]))
+
+            for df, nome_fascia in lista_dati:
+                df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
+                df.rename(columns={'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA', 'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'}, inplace=True, errors='ignore')
+                col_classe = None
+                for col in df.columns:
+                    col_upper = str(col).strip().upper()
+                    if col_upper in {'CODICE GRADUATORIA', 'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE', 'CLASSE DI CONCORSO'}:
+                        col_classe = col
+                        break
+                if col_classe and not df.empty:
+                    def contiene_classe_esatta(valore, codici_target):
+                        if pd.isna(valore): return False
+                        testo = str(valore).upper().strip().replace('-', ' ').replace('_', ' ')
+                        testo = re.sub(r'\s+', ' ', testo)
+                        codici_trovati = re.findall(r'(?<![A-Z0-9])(?:A\d{3}|A[A-Z]\d{2}|A[A-Z]\d[A-Z]|A[A-Z]{3}|IRC)(?![A-Z0-9])', testo)
+                        codici_trovati = {c.upper() for c in codici_trovati}
+                        return any(c in codici_trovati for c in codici_target)
+                    prima = len(df)
+                    df = df[df[col_classe].apply(lambda x: contiene_classe_esatta(x, codici_ricerca))].copy()
+                    dopo = len(df)
+                    logger.info(f"[{codice_upper}] FILTRO CLASSE: {prima} -> {dopo}")
+
+                col_ufficio = next((col for col in df.columns if 'UFFICIO' in str(col).upper() or 'PROVINCIA' in str(col).upper()), None)
+                col_cognome = next((col for col in df.columns if 'COGNOME' in str(col).upper()), None)
+                
+                if col_ufficio:
+                    df['_sigla_prov'] = df[col_ufficio].apply(to_sigla)
+                    df = df.dropna(subset=['_sigla_prov'])
+                    if province_sigle: df = df[df['_sigla_prov'].isin(province_sigle)]
+                    df[col_ufficio] = df['_sigla_prov']
+                    df = df.drop(columns=['_sigla_prov'])
+                else:
+                    df = pd.DataFrame()
+                if col_cognome and not df.empty:
+                    df = df[~df[col_cognome].astype(str).str.strip().isin(['*', '', 'nan', 'None'])]
+                    df = df.dropna(subset=[col_cognome])
+                if df.empty: continue
+
+                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE']
+                df.columns = df.columns.astype(str).str.strip()
+                df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
+                col_punteggio_sep = None
+                for col in df.columns:
+                    col_upper = str(col).upper().strip()
+                    if col_upper == 'PUNTEGGIO TOTALE':
+                        col_punteggio_sep = col
+                        break
+                if not col_punteggio_sep:
+                    col_punteggio_sep = next((col for col in df.columns if 'PUNTEGGIO' in str(col).upper() or 'TOTALE' in str(col).upper() or 'VOTO' in str(col).upper()), None)
+
+                if col_ufficio:
+                    counts = df[col_ufficio].value_counts()
+                    for sigla, count in counts.items():
+                        sigla_str = str(sigla).upper()
+                        region_name, nome_esteso = PROVINCE_DATA.get(sigla_str, ("", sigla_str))
+                        num_scuole = scuole_dict.get(nome_esteso, 0)
+                        num_candidati = int(count)
+                        rapporto = round(num_scuole / num_candidati, 4) if num_candidati > 0 else 0
+                        top_candidate = "N/D"
+                        bottom_candidate = "N/D"
+                        median_score = 0.0
+                        if col_punteggio_sep:
+                            prov_df = df[df[col_ufficio] == sigla_str].copy()
+                            prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
+                            prov_df = prov_df.dropna(subset=['punteggio_num'])
+                            if not prov_df.empty:
+                                if nome_esteso not in province_scores: province_scores[nome_esteso] = []
+                                province_scores[nome_esteso].extend(prov_df['punteggio_num'].tolist())
+                                idx_max = prov_df['punteggio_num'].idxmax()
+                                idx_min = prov_df['punteggio_num'].idxmin()
+                                max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
+                                min_score = float(prov_df.loc[idx_min, 'punteggio_num'])
+                                median_score = float(prov_df['punteggio_num'].median())
+                                top_candidate = str(max_score).replace('.', ',')
+                                bottom_candidate = str(min_score).replace('.', ',')
+                                if top_candidate.endswith(',0'): top_candidate = top_candidate.replace(',0', '')
+                                if bottom_candidate.endswith(',0'): bottom_candidate = bottom_candidate.replace(',0', '')
+                        if nome_esteso not in stats_data:
+                            stats_data[nome_esteso] = {"scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto, "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score}
+                        else:
+                            stats_data[nome_esteso]["candidati"] += num_candidati
+                            stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
+                            if top_candidate != "N/D":
+                                existing_top = parse_score(stats_data[nome_esteso]["top"])
+                                new_top = parse_score(top_candidate)
+                                if existing_top is None or (new_top is not None and new_top > existing_top): stats_data[nome_esteso]["top"] = top_candidate
+                            if bottom_candidate != "N/D":
+                                existing_bottom = parse_score(stats_data[nome_esteso]["bottom"])
+                                new_bottom = parse_score(bottom_candidate)
+                                if existing_bottom is None or (new_bottom is not None and new_bottom < existing_bottom): stats_data[nome_esteso]["bottom"] = bottom_candidate
+
+                pdf.set_font("Helvetica", 'B', 12)
+                pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
+                pdf.ln(2)
+                if len(df) > MAX_ROWS_PDF:
+                    df = df.head(MAX_ROWS_PDF)
+                    pdf.set_font("Helvetica", 'I', 8)
+                    pdf.cell(0, 6, text=sanitize_for_fpdf(f"Avviso: Mostrati solo i primi {MAX_ROWS_PDF} record."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                def is_empty(val):
+                    v = str(val).strip().lower()
+                    return v in ['nan', '*', 'none', '', '-']
+                cols_to_drop = []
+                keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA']
+                for col in df.columns:
+                    unique_vals = [val for val in df[col].unique() if not is_empty(val)]
+                    col_upper = str(col).upper()
+                    is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
+                    is_keep_col = col_upper in [c.upper() for c in keep_cols]
+                    if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col: cols_to_drop.append(col)
+                    if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower(): cols_to_drop.append(col)
+                df = df.drop(columns=cols_to_drop, errors='ignore')
+
+                def format_val(val):
+                    s = str(val).strip()
+                    if s.lower() in ['nan', 'none', ''] or s == '*': return "-"
+                    if s.endswith('.0'):
+                        try:
+                            f = float(s)
+                            if f.is_integer(): return str(int(f))
+                        except ValueError: pass
+                    return s
+
+                col_widths = {}
+                total_width = 0
+                for col in df.columns:
+                    words = str(col).split()
+                    longest_word = max(len(w) for w in words) if words else 1
+                    min_width_header = max(longest_word * 2.2, 15)
+                    max_len_content = len(str(col))
+                    for val in df[col].head(100):
+                        val_str = format_val(val)
+                        if len(val_str) > max_len_content: max_len_content = len(val_str)
+                    width = min(max_len_content * 2.2, 50)
+                    width = max(width, min_width_header)
+                    if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']: width = max(width, 25)
+                    if str(col).upper() in ['COGNOME', 'NOME']: width = max(width, 35)
+                    if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper(): width = max(width, 25)
+                    if 'POSIZIONE' in str(col).upper(): width = max(width, 20)
+                    col_widths[col] = width
+                    total_width += width
+                page_width = 277
+                if total_width > 0:
+                    scale = page_width / total_width
+                    for col in col_widths: col_widths[col] *= scale
+                    total_width_scaled = sum(col_widths.values())
+                else:
+                    total_width_scaled = 0
+                pdf.set_font("Helvetica", 'B', 9)
+                line_height = 5
+                max_lines = 2
+                max_header_height = max_lines * line_height
+                header_texts = {}
+                for col in df.columns:
+                    char_limit = max(1, int(col_widths[col] / 2.0))
+                    words = str(col).split()
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if len(current_line) + len(word) + 1 <= char_limit:
+                            current_line = (current_line + " " + word).strip()
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line: lines.append(current_line)
+                    if not lines: lines = [""]
+                    if len(lines) > 2: lines = [lines[0], " ".join(lines[1:])]
+                    while len(lines) < 2: lines.append("")
+                    header_texts[col] = "\n".join(lines)
+
+                def draw_table_header(add_spacer=False):
+                    y_start = pdf.get_y()
+                    for col in df.columns:
+                        x_start = pdf.get_x()
+                        text = header_texts[col]
+                        pdf.multi_cell(col_widths[col], line_height, text, border=1, align='L')
+                        pdf.set_xy(x_start + col_widths[col], y_start)
+                    pdf.set_y(y_start + max_header_height)
+                    if add_spacer:
+                        pdf.cell(total_width_scaled, line_height, text="", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                draw_table_header(add_spacer=False)
+                current_prov_sigla = None
+                current_region = None
+                prov_full_name = None
+                pdf.set_font("Helvetica", size=9)
+                row_height = 7
+                for _, row in df.iterrows():
+                    prov_changed = False
+                    reg_changed = False
+                    if col_ufficio:
+                        prov_sigla = format_val(row[col_ufficio]).upper()
+                        if prov_sigla != current_prov_sigla:
+                            prov_changed = True
+                            current_prov_sigla = prov_sigla
+                            region_name, prov_full_name = PROVINCE_DATA.get(prov_sigla, ("", prov_sigla))
+                            if region_name and region_name != current_region:
+                                reg_changed = True
+                                current_region = region_name
+                    if prov_changed:
+                        spazio_necessario = 20
+                        if reg_changed: spazio_necessario += 10
+                        if pdf.get_y() + spazio_necessario + row_height > 190:
+                            pdf.add_page()
+                            draw_table_header(add_spacer=True)
+                            pdf.set_font("Helvetica", size=9)
+                        else:
+                            pdf.ln(4)
+                        if reg_changed and region_name:
+                            pdf.set_font("Helvetica", 'B', 12)
+                            pdf.cell(0, 7, text=sanitize_for_fpdf(region_name.upper()), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
+                        if prov_full_name:
+                            pdf.set_font("Helvetica", 'B', 10)
+                            pdf.cell(0, 6, text=sanitize_for_fpdf(prov_full_name.upper()), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
+                            pdf.ln(2)
+                        pdf.set_font("Helvetica", size=9)
+                    if pdf.get_y() + row_height > 190:
+                        pdf.add_page()
+                        draw_table_header(add_spacer=True)
+                        pdf.set_font("Helvetica", size=9)
+                    for col in df.columns:
+                        valore = sanitize_for_fpdf(format_val(row[col]))
+                        char_lim = max(1, int(col_widths[col] / 2.0))
+                        if len(valore) > char_lim:
+                            valore = valore[:char_lim-3] + "..."
+                        align = 'L'
+                        pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
+                    pdf.ln(row_height)
+            pdf.ln(8)
+            trovato_almeno_uno = True
+        except Exception as e:
+            logger.error(f"Errore elaborazione file: {str(e)}", exc_info=True)
+            pdf.set_font("Helvetica", 'I', 10)
+            pdf.cell(0, 10, text=sanitize_for_fpdf(f"Errore interno durante l'elaborazione della classe {codice}."), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.ln(5)
+
+    import statistics
+    for prov, scores in province_scores.items():
+        if prov in stats_data and scores:
+            try:
+                stats_data[prov]["median"] = float(statistics.median(scores))
+            except statistics.StatisticsError:
+                pass
+        elif prov in stats_data:
+            stats_data[prov]["median"] = 0.0
+
+    if not trovato_almeno_uno:
+        pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    
+    pdf_bytes = pdf.output()
+    import base64
+    pdf_base64 = base64.b64encode(bytes(pdf_bytes)).decode('utf-8')
+    logger.info(f"Generazione PDF completata. Stats inviate: {len(stats_data)} province.")
+    return jsonify({"pdf_base64": pdf_base64, "stats": stats_data})
 
 
 # ====================================================================
