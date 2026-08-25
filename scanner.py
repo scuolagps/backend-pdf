@@ -919,8 +919,9 @@ def genera_pdf():
                             prov_df['punteggio_num'] = prov_df[col_punteggio_sep].apply(pulisci_punteggio)
                             prov_df = prov_df.dropna(subset=['punteggio_num'])
                             if not prov_df.empty:
-                                if nome_esteso not in province_scores: province_scores[nome_esteso] = []
-                                province_scores[nome_esteso].extend(prov_df['punteggio_num'].tolist())
+                                if codice_upper not in province_scores: province_scores[codice_upper] = {}
+                                if nome_esteso not in province_scores[codice_upper]: province_scores[codice_upper][nome_esteso] = []
+                                province_scores[codice_upper][nome_esteso].extend(prov_df['punteggio_num'].tolist())
                                 idx_max = prov_df['punteggio_num'].idxmax()
                                 idx_min = prov_df['punteggio_num'].idxmin()
                                 max_score = float(prov_df.loc[idx_max, 'punteggio_num'])
@@ -930,19 +931,22 @@ def genera_pdf():
                                 bottom_candidate = str(min_score).replace('.', ',')
                                 if top_candidate.endswith(',0'): top_candidate = top_candidate.replace(',0', '')
                                 if bottom_candidate.endswith(',0'): bottom_candidate = bottom_candidate.replace(',0', '')
-                        if nome_esteso not in stats_data:
-                            stats_data[nome_esteso] = {"scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto, "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score}
+                        
+                        # INIZIO MODIFICA: Raggruppa per codice_upper
+                        if codice_upper not in stats_data: stats_data[codice_upper] = {}
+                        if nome_esteso not in stats_data[codice_upper]:
+                            stats_data[codice_upper][nome_esteso] = {"scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto, "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score}
                         else:
-                            stats_data[nome_esteso]["candidati"] += num_candidati
-                            stats_data[nome_esteso]["rapporto"] = round(stats_data[nome_esteso]["scuole"] / stats_data[nome_esteso]["candidati"], 4)
+                            stats_data[codice_upper][nome_esteso]["candidati"] += num_candidati
+                            stats_data[codice_upper][nome_esteso]["rapporto"] = round(stats_data[codice_upper][nome_esteso]["scuole"] / stats_data[codice_upper][nome_esteso]["candidati"], 4)
                             if top_candidate != "N/D":
-                                existing_top = parse_score(stats_data[nome_esteso]["top"])
+                                existing_top = parse_score(stats_data[codice_upper][nome_esteso]["top"])
                                 new_top = parse_score(top_candidate)
-                                if existing_top is None or (new_top is not None and new_top > existing_top): stats_data[nome_esteso]["top"] = top_candidate
+                                if existing_top is None or (new_top is not None and new_top > existing_top): stats_data[codice_upper][nome_esteso]["top"] = top_candidate
                             if bottom_candidate != "N/D":
-                                existing_bottom = parse_score(stats_data[nome_esteso]["bottom"])
+                                existing_bottom = parse_score(stats_data[codice_upper][nome_esteso]["bottom"])
                                 new_bottom = parse_score(bottom_candidate)
-                                if existing_bottom is None or (new_bottom is not None and new_bottom < existing_bottom): stats_data[nome_esteso]["bottom"] = bottom_candidate
+                                if existing_bottom is None or (new_bottom is not None and new_bottom < existing_bottom): stats_data[codice_upper][nome_esteso]["bottom"] = bottom_candidate
 
                 pdf.set_font("Helvetica", 'B', 12)
                 pdf.cell(0, 10, text=sanitize_for_fpdf(nome_fascia), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
@@ -1090,14 +1094,15 @@ def genera_pdf():
             pdf.ln(5)
 
     import statistics
-    for prov, scores in province_scores.items():
-        if prov in stats_data and scores:
-            try:
-                stats_data[prov]["median"] = float(statistics.median(scores))
-            except statistics.StatisticsError:
-                pass
-        elif prov in stats_data:
-            stats_data[prov]["median"] = 0.0
+    for codice, provs in province_scores.items():
+        for prov, scores in provs.items():
+            if prov in stats_data.get(codice, {}) and scores:
+                try:
+                    stats_data[codice][prov]["median"] = float(statistics.median(scores))
+                except statistics.StatisticsError:
+                    pass
+            elif prov in stats_data.get(codice, {}):
+                stats_data[codice][prov]["median"] = 0.0
 
     if not trovato_almeno_uno:
         pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
