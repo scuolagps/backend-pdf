@@ -780,6 +780,7 @@ def genera_pdf():
             files_to_search = [f for f in root_files if f.path.startswith(f1_prefix) or f.path.startswith(f2_prefix)]
         else:
             files_to_search = [f for f in root_files if not f.path.startswith(f1_prefix) and not f.path.startswith(f2_prefix)]
+
         file_da_elaborare = []
         nomi_file_visti = set()
         for f in files_to_search:
@@ -794,17 +795,11 @@ def genera_pdf():
                 else:
                     prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
                 
+                # Se il file inizia con il prefisso corretto ed è un CSV, lo prendiamo
                 if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti: break
-                    if fascia_norm:
-                        file_fascia_part = f.name.upper()[len(prefix):].replace('.CSV', '')
-                        file_fascia_norm = normalize_string(file_fascia_part)
-                        if file_fascia_norm == fascia_norm:
-                            file_da_elaborare.append(f)
-                            nomi_file_visti.add(f.name)
-                    else:
-                        file_da_elaborare.append(f)
-                        nomi_file_visti.add(f.name)
+                    file_da_elaborare.append(f)
+                    nomi_file_visti.add(f.name)
                     break
 
         if not file_da_elaborare:
@@ -896,7 +891,7 @@ def genera_pdf():
                     df = df.dropna(subset=[col_cognome])
                 if df.empty: continue
 
-                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE']
+                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
                 df.columns = df.columns.astype(str).str.strip()
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
                 col_punteggio_sep = None
