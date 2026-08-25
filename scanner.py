@@ -624,8 +624,61 @@ def get_all_repo_files(repo, path=""):
     return files
 
 # ====================================================================
+# FUNZIONE HELPER: DOWNLOAD ROBUSTO PER GESTIRE GIT LFS
 # ====================================================================
-# ROUTE 1: GENERA PDF E STATISTICHE BASE (VERSIONE COMPLETA ORIGINALE)
+def download_github_file_robust(repo, file_obj):
+    """
+    Scarica il contenuto reale di un file GitHub gestendo anche file Git LFS.
+    Tenta in ordine:
+      1) API raw via PyGithub (migliore per LFS se autenticato)
+      2) download_url con header Authorization (LFS redirect autenticato)
+      3) raw.githubusercontent.com con token
+    Ritorna: bytes del contenuto o None se tutti i metodi falliscono.
+    """
+    # Metodo 1: API raw via PyGithub
+    try:
+        content = repo.get_contents(file_obj.path, ref=repo.default_branch)
+        raw = content.decoded_content
+        # Se è un LFS pointer, decoded_content di solito ritorna il pointer (circa 130 bytes con 'version https://git-lfs')
+        if raw and not raw.startswith(b'version https://git-lfs'):
+            if len(raw) > 50 or b'404' not in raw[:20]:
+                return raw
+    except Exception as e:
+        logger.debug(f"[DOWNLOAD] Metodo 1 (API raw) fallito per {file_obj.path}: {e}")
+
+    # Metodo 2: download_url con Authorization header
+    try:
+        headers = {}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+            headers["Accept"] = "application/vnd.github.v3.raw"
+        if hasattr(file_obj, 'download_url') and file_obj.download_url:
+            resp = requests.get(file_obj.download_url, headers=headers, timeout=60)
+            if resp.status_code == 200 and not resp.text.strip().startswith("404"):
+                return resp.content
+            logger.warning(f"[DOWNLOAD] download_url HTTP {resp.status_code} per {file_obj.path}")
+    except Exception as e:
+        logger.debug(f"[DOWNLOAD] Metodo 2 (download_url auth) fallito: {e}")
+
+    # Metodo 3: raw.githubusercontent.com con token
+    try:
+        raw_url = f"https://raw.githubusercontent.com/{repo.full_name}/{repo.default_branch}/{file_obj.path}"
+        headers = {}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+        resp = requests.get(raw_url, headers=headers, timeout=60)
+        if resp.status_code == 200:
+            return resp.content
+        logger.warning(f"[DOWNLOAD] raw.githubusercontent HTTP {resp.status_code}")
+    except Exception as e:
+        logger.debug(f"[DOWNLOAD] Metodo 3 (raw.githubusercontent) fallito: {e}")
+
+    logger.error(f"[DOWNLOAD] TUTTI i metodi falliti per {file_obj.path}")
+    return None
+
+
+# ====================================================================
+# ROUTE 1: GENERA PDF E STATISTICHE BASE
 # ====================================================================
 @app.route('/genera-pdf', methods=['POST', 'OPTIONS'])
 def genera_pdf():
@@ -818,14 +871,19 @@ def genera_pdf():
             lista_dati = []
             for file_trovato in file_da_elaborare:
                 try:
-                    if hasattr(file_trovato, 'download_url') and file_trovato.download_url:
-                        response = requests.get(file_trovato.download_url)
-                        file_data = response.content
-                    else:
-                        file_content = repo.get_contents(file_trovato.path)
-                        file_data = file_content.decoded_content
+                    file_data = download_github_file_robust(repo, file_trovato)
+                    if file_data is None:
+                        logger.error(f"[PDF] Impossibile scaricare il file {file_trovato.name}")
+                        continue
+                        
                     csv_text = file_data.decode('utf-8-sig', errors='ignore')
                     csv_text = clean_csv_text(csv_text)
+                    
+                    # Sanity check
+                    if csv_text.strip().startswith("404") or len(csv_text) < 50:
+                        logger.error(f"[PDF] Contenuto invalido per {file_trovato.name}: '{csv_text[:50]}'")
+                        continue
+                        
                     try:
                         csv_io = io.StringIO(csv_text)
                         df_temp = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True)
@@ -1218,13 +1276,19 @@ def genera_bollettino():
         total_candidates = {}
         for file_obj in grad_files:
             try:
-                if hasattr(file_obj, 'download_url') and file_obj.download_url:
-                    response = requests.get(file_obj.download_url)
-                    file_data = response.content
-                else:
-                    file_data = file_obj.decoded_content
+                file_data = download_github_file_robust(repo, file_obj)
+                if file_data is None:
+                    logger.error(f"[BOLLETTINO] Impossibile scaricare graduatoria {file_obj.path}")
+                    continue
+                    
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
+                
+                # Sanity check: se il testo inizia con "404" o è troppo corto, salta
+                if csv_text.strip().startswith("404") or len(csv_text) < 50:
+                    logger.error(f"[BOLLETTINO] Contenuto invalido per {file_obj.name}: '{csv_text[:50]}'")
+                    continue
+                    
                 df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
                 df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
                 
@@ -1249,16 +1313,20 @@ def genera_bollettino():
             codice = b_entry["codice"]
             file_obj = b_entry["file"]
             try:
-                # Usiamo requests per scaricare il contenuto reale e bypassare il problema Git LFS
-                if hasattr(file_obj, 'download_url') and file_obj.download_url:
-                    logger.info(f"[BOLLETTINO] DEBUG: Downloading via download_url (bypass LFS)...")
-                    response = requests.get(file_obj.download_url)
-                    file_data = response.content
-                else:
-                    file_data = file_obj.decoded_content
+                # Usa la funzione robusta per scaricare il contenuto reale
+                file_data = download_github_file_robust(repo, file_obj)
+                if file_data is None:
+                    logger.error(f"[BOLLETTINO] Download fallito per {file_obj.name}, salto classe {codice}")
+                    continue
                 
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
+                
+                # Sanity check critico per evitare di parsare errori HTTP
+                if csv_text.strip().startswith("404") or len(csv_text) < 50:
+                    logger.error(f"[BOLLETTINO] File {file_obj.name} contiene errore HTTP invece del CSV.")
+                    logger.error(f"[BOLLETTINO] Possibile causa: file Git-LFS non accessibile. Contenuto: '{csv_text[:100]}'")
+                    continue
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
                 logger.info(f"[BOLLETTINO] DEBUG: Primi 100 caratteri del file: {csv_text[:100]}")
@@ -1393,6 +1461,7 @@ def genera_bollettino():
             })
         
     return jsonify({"data": out_data})
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
