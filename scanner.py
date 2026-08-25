@@ -756,7 +756,7 @@ def genera_pdf():
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Helvetica", 'B', 16)
-        pdf.cell(0, 10, "Estrazione Dati Scolastici", 0, 1, 'C')
+        pdf.cell(0, 10, "Estrazione Dati Scolastici", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
         pdf.ln(5)
         
         pdf.set_font("Helvetica", 'B', 10)
@@ -765,24 +765,22 @@ def genera_pdf():
         headers = ["Provincia", "Candidati", "P. Alto", "P. Basso", "Mediana"]
         col_widths = [50, 35, 35, 35, 35]
         for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], 8, h, 1, 0, 'C', True)
+            pdf.cell(col_widths[i], 8, h, border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C', fill=True)
         pdf.ln()
         
         pdf.set_text_color(0, 0, 0)
         pdf.set_font("Helvetica", '', 10)
         for prov, data_val in out_stats.items():
-            pdf.cell(col_widths[0], 8, str(prov), 1)
-            pdf.cell(col_widths[1], 8, str(data_val["candidati"]), 1, 0, 'C')
-            pdf.cell(col_widths[2], 8, str(data_val["top"]), 1, 0, 'C')
-            pdf.cell(col_widths[3], 8, str(data_val["bottom"]), 1, 0, 'C')
-            pdf.cell(col_widths[4], 8, str(data_val["median"]), 1, 0, 'C')
+            pdf.cell(col_widths[0], 8, str(prov), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP)
+            pdf.cell(col_widths[1], 8, str(data_val["candidati"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
+            pdf.cell(col_widths[2], 8, str(data_val["top"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
+            pdf.cell(col_widths[3], 8, str(data_val["bottom"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
+            pdf.cell(col_widths[4], 8, str(data_val["median"]), border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align='C')
             pdf.ln()
 
-        pdf_output = pdf.output(dest='S')
-        if isinstance(pdf_output, bytes):
-            pdf_base64 = base64.b64encode(pdf_output).decode('utf-8')
-        else:
-            pdf_base64 = base64.b64encode(pdf_output.encode('latin-1')).decode('utf-8')
+        # Corretto per gestire bytearray e rimuovere il deprecation warning
+        pdf_output = pdf.output()
+        pdf_base64 = base64.b64encode(bytes(pdf_output)).decode('utf-8')
 
         return jsonify({"pdf_base64": pdf_base64, "stats": out_stats})
 
