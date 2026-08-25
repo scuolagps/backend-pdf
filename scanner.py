@@ -1240,6 +1240,8 @@ def genera_bollettino():
             except Exception as e:
                 logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                 continue
+        
+        logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province. Dati: {list(total_candidates.items())[:5]}")
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
         results = {}
@@ -1265,6 +1267,7 @@ def genera_bollettino():
             current_prov_selected = False
             
             if codice not in results: results[codice] = {}
+            logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali: {len(df)}")
             
             for _, row in df.iterrows():
                 val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
@@ -1350,6 +1353,10 @@ def genera_bollettino():
         logger.error(f"[BOLLETTINO] Errore critico: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
+    logger.info(f"[BOLLETTINO] DEBUG: Risultati bollettino elaborati per {len(results)} classi.")
+    for codice, res in results.items():
+        logger.info(f"[BOLLETTINO] DEBUG: Classe {codice}: {len(res)} province con nomine.")
+
     # 5. CALCOLO METRICHE E OUTPUT RAGGRUPPATO
     out_data = {}
     for codice, res in results.items():
@@ -1378,6 +1385,7 @@ def genera_bollettino():
                 "cut_spezzoni": fmt(r["min_spezzoni"])
             })
         
+    logger.info(f"[BOLLETTINO] DEBUG: Dati finali inviati: {json.dumps(out_data, ensure_ascii=False)[:500]}")
     return jsonify({"data": out_data})
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
