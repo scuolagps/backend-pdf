@@ -1190,12 +1190,14 @@ def genera_bollettino():
                     fname = f.name.upper()
                     if any(f"_{pc}.CSV" in fname for pc in possible_codes):
                         bollettino_files.append({"codice": codice, "file": f})
+                        logger.info(f"[BOLLETTINO] Trovato file per {codice}: {f.name}")
                         found = True
                         break
             if not found:
-                logger.warning(f"Nessun file bollettino trovato per il codice: {codice}. Verrà saltato.")
+                logger.warning(f"[BOLLETTINO] Nessun file bollettino trovato per {codice}. Verrà saltato.")
         
         if not bollettino_files:
+            logger.error("[BOLLETTINO] Nessun file bollettino trovato per le classi selezionate.")
             return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
 
         # 2. INDIVIDUA FILE GRADUATORIE
@@ -1208,6 +1210,7 @@ def genera_bollettino():
                     fname = f.name.upper()
                     if any(pc in fname for pc in possible_codes):
                         grad_files_set.add(f)
+                        logger.info(f"[BOLLETTINO] Trovato file graduatoria per {codice}: {f.name}")
         
         grad_files = list(grad_files_set)
 
@@ -1235,7 +1238,7 @@ def genera_bollettino():
                             if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
                                 total_candidates[nome] = total_candidates.get(nome, 0) + 1
             except Exception as e:
-                logger.error(f"Errore lettura graduatoria {file_obj.path}: {e}")
+                logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                 continue
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
@@ -1253,7 +1256,7 @@ def genera_bollettino():
                 csv_text = clean_csv_text(csv_text)
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
             except Exception as e:
-                logger.error(f"Errore lettura bollettino {file_obj.path}: {e}")
+                logger.error(f"[BOLLETTINO] Errore lettura bollettino {file_obj.path}: {e}")
                 continue
 
             df.columns = [str(c).strip().upper() for c in df.columns]
@@ -1344,7 +1347,7 @@ def genera_bollettino():
                         prov_data["min_spezzoni"] = punt
 
     except Exception as e:
-        logger.error(f"Errore critico lettura bollettino: {str(e)}", exc_info=True)
+        logger.error(f"[BOLLETTINO] Errore critico: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
     # 5. CALCOLO METRICHE E OUTPUT RAGGRUPPATO
@@ -1376,7 +1379,6 @@ def genera_bollettino():
             })
         
     return jsonify({"data": out_data})
-
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
