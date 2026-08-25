@@ -1241,7 +1241,7 @@ def genera_bollettino():
                 logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                 continue
         
-        logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province. Dati: {list(total_candidates.items())[:5]}")
+        logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
         results = {}
@@ -1256,7 +1256,11 @@ def genera_bollettino():
                     file_data = file_obj.decoded_content
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
+                
+                logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
+                
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali lette: {len(df)}")
             except Exception as e:
                 logger.error(f"[BOLLETTINO] Errore lettura bollettino {file_obj.path}: {e}")
                 continue
@@ -1267,7 +1271,6 @@ def genera_bollettino():
             current_prov_selected = False
             
             if codice not in results: results[codice] = {}
-            logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali: {len(df)}")
             
             for _, row in df.iterrows():
                 val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
@@ -1385,7 +1388,6 @@ def genera_bollettino():
                 "cut_spezzoni": fmt(r["min_spezzoni"])
             })
         
-    logger.info(f"[BOLLETTINO] DEBUG: Dati finali inviati: {json.dumps(out_data, ensure_ascii=False)[:500]}")
     return jsonify({"data": out_data})
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
