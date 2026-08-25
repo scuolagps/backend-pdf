@@ -672,26 +672,82 @@ def genera_bollettino():
     if "secondaria_ii" in ordini_selezionati:
         prefixes.append("Bollettini/SS/")
 
+    # Cartelle di estrazione graduatorie per ricavare il totale iscritti reale
+    grad_prefixes = []
+    if "infanzia" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_AA_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_AA_2_Fascia/")
+    if "primaria" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_EE_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_EE_2_Fascia/")
+    if "secondaria_i" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_MM_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_MM_2_Fascia/")
+    if "secondaria_ii" in ordini_selezionati:
+        if fascia_filter in ('', 'F1'): grad_prefixes.append("Estrazione_SS_1_Fascia/")
+        if fascia_filter in ('', 'F2'): grad_prefixes.append("Estrazione_SS_2_Fascia/")
+
     try:
         repo = g.get_repo(REPO_NAME)
         root_files = get_all_repo_files(repo)
         
-        # Individua SOLO i file corrispondenti ai codici selezionati nelle cartelle giuste
-        file_objs = []
+        # 1. INDIVIDUA FILE BOLLETTINO
+        bollettino_files = []
         for codice in codici_validi:
+            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
+            possible_codes.add(codice)
             for f in root_files:
                 if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv'):
                     fname = f.name.upper()
-                    # Cerchiamo il file esatto (es. RISULTATO_ESTRAZIONE_ADEE.CSV)
-                    if fname == f"RISULTATO_ESTRAZIONE_{codice}.CSV":
-                        file_objs.append(f)
-                        break  # Trovato il file per questo codice, passa al prossimo codice
+                    if any(f"_{pc}.CSV" in fname for pc in possible_codes):
+                        bollettino_files.append(f)
+                        break
         
-        if not file_objs:
+        # 2. INDIVIDUA FILE GRADUATORIE (PER OTTENERE IL NUMERO DI ISCRITTI REALI)
+        grad_files = []
+        for codice in codici_validi:
+            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
+            possible_codes.add(codice)
+            for f in root_files:
+                if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
+                    fname = f.name.upper()
+                    if any(pc in fname for pc in possible_codes):
+                        grad_files.append(f)
+                        break
+
+        if not bollettino_files:
             return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
-            
+
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA DAI FILE GRADUATORIA
+        total_candidates = {}
+        for file_obj in grad_files:
+            try:
+                if hasattr(file_obj, 'download_url') and file_obj.download_url:
+                    response = requests.get(file_obj.download_url)
+                    file_data = response.content
+                else:
+                    file_data = file_obj.decoded_content
+                csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                csv_text = clean_csv_text(csv_text)
+                df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
+                
+                for _, row in df_grad.iterrows():
+                    val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
+                    if val_prov and val_prov.upper() not in ('NAN', 'NONE'):
+                        sigla = to_sigla(val_prov)
+                        if sigla:
+                            _, nome = PROVINCE_DATA[sigla]
+                            val_cog = str(row.get('COGNOME', '')).strip()
+                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
+                                total_candidates[nome] = total_candidates.get(nome, 0) + 1
+            except Exception as e:
+                logger.error(f"Errore lettura graduatoria {file_obj.path}: {e}")
+                continue
+
+        # 4. ELABORA BOLLETTINO PER NOMINE, CUT-OFF E POSIZIONI
         results = {}
-        for file_obj in file_objs:
+        for file_obj in bollettino_files:
             try:
                 if hasattr(file_obj, 'download_url') and file_obj.download_url:
                     response = requests.get(file_obj.download_url)
@@ -714,9 +770,13 @@ def genera_bollettino():
                 val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 
+                # Ignora righe "NOMINA N 1" come richiesto
+                if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
+                    continue
+                
                 if val_prov and val_prov not in ('nan', 'None'):
                     for sigla, (region, nome) in PROVINCE_DATA.items():
-                        if val_prov.upper() == nome.upper():
+                        if val_prov.upper() == nome.upper() or to_sigla(val_prov) == sigla:
                             prov_norm = nome.upper().replace(" ", "").replace("'", "").replace("-", "")
                             if (prov_set and prov_norm in prov_set) or \
                                (not prov_set and reg_set and region.upper() in reg_set) or \
@@ -733,7 +793,6 @@ def genera_bollettino():
                 if not val_classe or val_classe in ('nan', 'None'):
                     continue
                     
-                is_nomina = val_classe.upper().startswith('NOMINA')
                 is_data = any(cod in val_classe.upper() for cod in codici_validi)
                 
                 if is_data:
@@ -752,51 +811,74 @@ def genera_bollettino():
                             continue
                         pos = int(float(pos_val))
                         punt_val = row.get('PUNTEGGIO')
-                        if pd.isna(punt_val) or punt_val == '' or punt_val == '*':
-                            continue
                         punt = pulisci_punteggio(punt_val)
                         if punt is None:
                             continue
+                            
+                        contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
+                        cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
+                        nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
+                        candidato_id = f"{cog}_{nom}"
                     except (ValueError, TypeError):
                         continue
                         
                     if current_prov not in results:
                         results[current_prov] = {
-                            "regione": current_region, "nomine_totali": 0, "nomine_f1": 0,
-                            "nomine_f2": 0, "min_f1": None, "min_f2": None
+                            "regione": current_region, 
+                            "nomine_totali": 0, "nominati_univoci": set(),
+                            "max_posizione": 0, 
+                            "min_31_08": None, "min_30_06": None, "min_spezzoni": None
                         }
                         
                     prov_data = results[current_prov]
                     prov_data["nomine_totali"] += 1
-                    if fascia_raw == "F1":
-                        prov_data["nomine_f1"] += 1
-                        if prov_data["min_f1"] is None or punt < prov_data["min_f1"]:
-                            prov_data["min_f1"] = punt
-                    elif fascia_raw == "F2":
-                        prov_data["nomine_f2"] += 1
-                        if prov_data["min_f2"] is None or punt < prov_data["min_f2"]:
-                            prov_data["min_f2"] = punt
+                    prov_data["nominati_univoci"].add(candidato_id)
+                    
+                    if pos > prov_data["max_posizione"]:
+                        prov_data["max_posizione"] = pos
+                        
+                    if 'ANNUALE' in contratto:
+                        if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
+                            prov_data["min_31_08"] = punt
+                    elif 'TERMINE' in contratto or 'FINO AL' in contratto:
+                        if prov_data["min_30_06"] is None or punt < prov_data["min_30_06"]:
+                            prov_data["min_30_06"] = punt
+                    elif 'SPEZZONE' in contratto:
+                        if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
+                            prov_data["min_spezzoni"] = punt
 
     except Exception as e:
         logger.error(f"Errore critico lettura bollettino: {str(e)}", exc_info=True)
         return jsonify({"error": f"Errore lettura bollettino: {str(e)}"}), 500
 
+    # 5. CALCOLO METRICHE FINALI E OUTPUT
     out_data = []
     for prov, r in results.items():
-        assorb_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
-        prob_f1 = round((r["nomine_f1"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
-        prob_f2 = round((r["nomine_f2"] / r["nomine_totali"]) * 100, 2) if r["nomine_totali"] > 0 else 0
-        min_f1_str = str(r['min_f1']).replace('.', ',') if r['min_f1'] is not None else "N/D"
-        min_f2_str = str(r['min_f2']).replace('.', ',') if r['min_f2'] is not None else "N/D"
-        if min_f1_str.endswith(',0'): min_f1_str = min_f1_str.replace(',0', '')
-        if min_f2_str.endswith(',0'): min_f2_str = min_f2_str.replace(',0', '')
+        tot_cand = total_candidates.get(prov, 0)
+        nominati_univoci = len(r["nominati_univoci"])
+        
+        assorbimento = round((nominati_univoci / tot_cand) * 100, 2) if tot_cand > 0 else 0
+        max_pos = r["max_posizione"]
+        rinuncia = round(((max_pos - nominati_univoci) / max_pos) * 100, 2) if max_pos > 0 else 0
+        
+        def fmt(val):
+            if val is None: return "N/D"
+            s = str(val).replace('.', ',')
+            if s.endswith(',0'): s = s.replace(',0', '')
+            return s
+            
         out_data.append({
-            "regione": r['regione'], "provincia": prov, "nomine_totali": r["nomine_totali"],
-            "min_f1": min_f1_str, "min_f2": min_f2_str, "assorbimento_f1": assorb_f1,
-            "prob_f1": prob_f1, "prob_f2": prob_f2, "nomine_f1": r["nomine_f1"], "nomine_f2": r["nomine_f2"]
+            "regione": r['regione'], "provincia": prov, 
+            "candidati_totali": tot_cand, "nomine_totali": r["nomine_totali"],
+            "nominati_univoci": nominati_univoci, "assorbimento": assorbimento,
+            "max_posizione": max_pos, "rinuncia": rinuncia,
+            "cut_31_08": fmt(r["min_31_08"]), 
+            "cut_30_06": fmt(r["min_30_06"]), 
+            "cut_spezzoni": fmt(r["min_spezzoni"])
         })
         
     return jsonify({"data": out_data})
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     from waitress import serve
