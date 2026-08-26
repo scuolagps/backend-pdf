@@ -813,7 +813,6 @@ def genera_pdf():
         is_i_fascia_selected = (fascia_upper == "I_FASCIA" or fascia_upper == "1_FASCIA" or fascia_upper == "IFASCIA")
         is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or fascia_upper == "2_FASCIA" or fascia_upper == "IIFASCIA")
 
-        # Mappa i prefissi corretti in base all'ordine di scuola
         ordine_to_prefix = {
             "infanzia": ("Estrazione_AA_1_Fascia/", "Estrazione_AA_2_Fascia/"),
             "primaria": ("Estrazione_EE_1_Fascia/", "Estrazione_EE_2_Fascia/"),
@@ -846,7 +845,6 @@ def genera_pdf():
                 else:
                     prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
                 
-                # Se il file inizia con il prefisso corretto ed è un CSV, lo prendiamo
                 if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti: break
                     file_da_elaborare.append(f)
@@ -877,7 +875,6 @@ def genera_pdf():
                     csv_text = file_data.decode('utf-8-sig', errors='ignore')
                     csv_text = clean_csv_text(csv_text)
                     
-                    # Sanity check
                     if csv_text.strip().startswith("404") or len(csv_text) < 50:
                         logger.error(f"[PDF] Contenuto invalido per {file_trovato.name}: '{csv_text[:50]}'")
                         continue
@@ -947,9 +944,8 @@ def genera_pdf():
                     df = df.dropna(subset=[col_cognome])
                 if df.empty: continue
 
-                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'ORIGINE', 'INDICATORE DI PREFERENZE', 'CODICE GRADUATORIA', 'TIPOLOGIA LINGUA', 'SESSO', 'DATA NASCITA', 'CODICE FISCALE']
+                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
                 df.columns = df.columns.astype(str).str.strip()
-                # Usiamo errors='ignore' per non far crashare se una colonna non esiste
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
                 col_punteggio_sep = None
                 for col in df.columns:
@@ -989,7 +985,6 @@ def genera_pdf():
                                 if top_candidate.endswith(',0'): top_candidate = top_candidate.replace(',0', '')
                                 if bottom_candidate.endswith(',0'): bottom_candidate = bottom_candidate.replace(',0', '')
                         
-                        # INIZIO MODIFICA: Raggruppa per codice_upper
                         if codice_upper not in stats_data: stats_data[codice_upper] = {}
                         if nome_esteso not in stats_data[codice_upper]:
                             stats_data[codice_upper][nome_esteso] = {"scuole": num_scuole, "candidati": num_candidati, "rapporto": rapporto, "regione": region_name, "top": top_candidate, "bottom": bottom_candidate, "median": median_score}
@@ -1101,6 +1096,15 @@ def genera_pdf():
                 prov_full_name = None
                 pdf.set_font("Helvetica", size=9)
                 row_height = 7
+                
+                # ==============================================================================
+                # OTTIMIZZAZIONE ESTREMA CICLO PDF
+                # Pre-calcoliamo i limiti dei caratteri UNA VOLTA SOLA prima del ciclo
+                col_char_lims = {}
+                for col in df.columns:
+                    col_char_lims[col] = max(1, int(col_widths[col] / 2.0))
+                # ==============================================================================
+
                 for _, row in df.iterrows():
                     prov_changed = False
                     reg_changed = False
@@ -1136,17 +1140,20 @@ def genera_pdf():
                         pdf.set_font("Helvetica", size=9)
                     for col in df.columns:
                         valore = sanitize_for_fpdf(format_val(row[col]))
-                        char_lim = max(1, int(col_widths[col] / 2.0))
+                        # Usiamo il limite precalcolato
+                        char_lim = col_char_lims[col]
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
                         align = 'L'
                         pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
                     pdf.ln(row_height)
-            # --- AGGIUNGI QUESTE RIGHE PER LIBERARE LA MEMORIA ---
+            
+            # --- PULIZIA MEMORIA (ANTI-CRASH) ---
             # Eliminiamo il DataFrame appena disegnato per fare spazio al successivo
+            import gc
             del df
             gc.collect()
-            # ----------------------------------------------------
+            # ------------------------------------
             
             pdf.ln(8)
             trovato_almeno_uno = True
@@ -1170,14 +1177,8 @@ def genera_pdf():
     if not trovato_almeno_uno:
         pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     
-    import gc
-    # Genera il PDF direttamente in byte ed encoded in Base64 in un solo passaggio
-    pdf_base64 = base64.b64encode(pdf.output()).decode('ascii')
-    
-    # Puliamo forzatamente la memoria prima di inviare la risposta
-    del pdf
-    gc.collect() 
-    
+    import base64
+    pdf_base64 = base64.b64encode(pdf.output()).decode('utf-8')
     logger.info(f"Generazione PDF completata. Stats inviate per {len(stats_data)} classi.")
     return jsonify({"pdf_base64": pdf_base64, "stats": stats_data})
 
