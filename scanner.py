@@ -1383,7 +1383,7 @@ def genera_bollettino():
             
             if codice not in results: results[codice] = {}
             
-
+            debug_mismatch_global = 0
 
             for _, row in df.iterrows():
                 val_prov_raw = str(row.get('UFFICIO PROVINCIALE', '')).strip()
@@ -1397,11 +1397,20 @@ def genera_bollettino():
                     sigla_from_scuola = codice_scuola[:2]
                     if sigla_from_scuola in PROVINCE_DATA:
                         val_prov = sigla_from_scuola
+                        
+                        # VALIDATION LOG: Se il PDF era sballato, la colonna UFFICIO e la Scuola non matchano.
+                        # Stampiamo solo i primi 10 casi per verificare che il fix sta lavorando.
+                        sigla_from_raw = to_sigla(val_prov_raw)
+                        if sigla_from_raw and sigla_from_raw != sigla_from_scuola and debug_mismatch_global < 10:
+                            logger.info(f"[VALIDATION FIX] UFFICIO diceva '{val_prov_raw}' ({sigla_from_raw}), ma Scuola '{codice_scuola}' -> Usata {sigla_from_scuola}.")
+                            debug_mismatch_global += 1
 
                 if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
                     continue
 
-                # FIX: Se la provincia è vuota, NON continuiamo ad attribuire le righe alla provincia precedente!
+                if not val_classe or val_classe in ('nan', 'None'):
+                    continue
+
                 if not val_prov or val_prov in ('nan', 'None', ''):
                     current_prov_selected = False
                     continue
@@ -1422,32 +1431,9 @@ def genera_bollettino():
                                 current_prov_selected = False
                             break
 
-                if not val_classe or val_classe in ('nan', 'None'):
-                    continue
                 if not current_prov_selected or current_prov is None:
                     continue
                     
-                # DEBUG: Stampiamo le righe di Roma che vengono scartate dai filtri successivi
-                if current_prov == "Roma" and codice == "ADMM":
-                    fascia_raw_check = str(row.get('FASCIA', '')).strip().upper()
-                    pos_val_check = row.get('POSIZIONE')
-                    punt_val_check = row.get('PUNTEGGIO')
-                    
-                    scartata = False
-                    motivo = ""
-                    if fascia_raw_check not in ('F1', 'F2'):
-                        scartata = True
-                        motivo = f"FASCIA non valida ({fascia_raw_check})"
-                    elif pd.isna(pos_val_check) or pos_val_check == '' or pos_val_check == '*':
-                        scartata = True
-                        motivo = f"POSIZIONE vuota o asterisco ({pos_val_check})"
-                    elif pulisci_punteggio(punt_val_check) is None:
-                        scartata = True
-                        motivo = f"PUNTEGGIO non valido ({punt_val_check})"
-                        
-                    if scartata:
-                        logger.warning(f"[DEBUG SCARTATA ROMA] Motivo: {motivo} | Riga intera: {row.to_dict()}")
-
                 fascia_raw = str(row.get('FASCIA', '')).strip().upper()
                 if fascia_raw not in ('F1', 'F2'):
                     continue
@@ -1487,15 +1473,8 @@ def genera_bollettino():
                 prov_data["nomine_totali"] += 1
                 prov_data["nominati_univoci"].add(candidato_id)
                 
-                # DEBUG MIRATO ROMA
-                if current_prov == "Roma" and codice == "ADMM":
-                    logger.info(f"[DEBUG NOMINA ROMA] Pos={pos} | Scuola={codice_scuola} | Cognome={cog} | Vecchio Max={prov_data['max_posizione']}")
-                
                 if pos > prov_data["max_posizione"]:
                     prov_data["max_posizione"] = pos
-                    # DEBUG QUANDO IL MAX VIENE AGGIORNATO
-                    if current_prov == "Roma" and codice == "ADMM":
-                        logger.warning(f"[DEBUG MAX POS ROMA] NUOVO MAX TROVATO={pos} | Scuola={codice_scuola}")
                     
                 if 'ANNUALE' in contratto:
                     if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
@@ -1542,6 +1521,13 @@ def genera_bollettino():
                 "cut_30_06": fmt(r["min_30_06"]), 
                 "cut_spezzoni": fmt(r["min_spezzoni"])
             })
+
+    # RIEPILOGO FINALE PER VERIFICA GLOBALE
+    logger.info("=== RIEPILOGO FINALE NOMINE (Tutte le Province) ===")
+    for codice, res_list in out_data.items():
+        for item in res_list:
+            logger.info(f"[RIEPILOGO] Classe: {codice} | Prov: {item['provincia']} | Candidati: {item['candidati_totali']} | Nominati: {item['nominati_univoci']} | MaxPos: {item['max_posizione']}")
+    logger.info("===================================================")
         
     return jsonify({"data": out_data})
 
