@@ -614,14 +614,21 @@ def get_scuole_dict_sec_ii_from_csv(repo, codice):
         logger.error(f"[SEC II] Errore critico nel caricamento del CSV scuole per {codice} ({csv_filename}): {e}")
         return None
 
-def get_all_repo_files(repo, path=""):
-    contents = repo.get_contents(path)
+def get_files_from_folders(repo, folder_paths):
+    """Ottiene i file SOLO dalle cartelle richieste (2-4 chiamate API invece di centinaia)."""
     files = []
-    for content in contents:
-        if content.type == "dir":
-            files.extend(get_all_repo_files(repo, content.path))
-        else:
-            files.append(content)
+    for folder_path in folder_paths:
+        folder_path = folder_path.rstrip('/')
+        try:
+            contents = repo.get_contents(folder_path)
+            for content in contents:
+                if content.type == 'file' and not content.name.startswith('~$'):
+                    files.append(content)
+            logger.info(f"Cartella '{folder_path}': {len([c for c in contents if c.type == 'file'])} file.")
+        except UnknownObjectException:
+            logger.warning(f"Cartella non trovata: {folder_path}")
+        except Exception as e:
+            logger.error(f"Errore accesso cartella {folder_path}: {e}")
     return files
 
 # ====================================================================
@@ -674,6 +681,12 @@ def download_github_file_robust(repo, file_obj):
     logger.error(f"[DOWNLOAD DEBUG] TUTTI i metodi falliti per {file_obj.path}")
     return None
 
+# ====================================================================
+# HEALTH CHECK (per warm-up Render e monitoraggio)
+# ====================================================================
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "ok", "ready": g is not None}), 200
 
 # ====================================================================
 # ROUTE 1: GENERA PDF E STATISTICHE BASE
@@ -731,20 +744,57 @@ def genera_pdf():
     pdf.cell(0, 10, text=filtro_luogo, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     pdf.ln(5)
 
-    trovato_almeno_uno = False
-    stats_data = {}
-    province_scores = {}
+    # --- Limite province per evitare OOM su Render (512MB) ---
+    MAX_PROVINCE_PER_REQUEST = 50
+    if len(province_nomi) > MAX_PROVINCE_PER_REQUEST:
+        return jsonify({"error": f"Troppe province ({len(province_nomi)}). Massimo {MAX_PROVINCE_PER_REQUEST} per richiesta."}), 400
+
+    # --- Fascia: calcolata UNA VOLTA, vale per tutti i codici ---
+    fascia_upper = (fascia_richiesta or "").upper().strip()
+    is_i_fascia_selected = (fascia_upper in ("I_FASCIA", "1_FASCIA", "IFASCIA"))
+    is_ii_fascia_selected = (fascia_upper in ("II_FASCIA", "2_FASCIA", "IIFASCIA"))
+
+    # --- Pre-calcola ordine_classe per ogni codice per sapere quali cartelle servono ---
+    ordine_to_prefix = {
+        "infanzia":      ("Estrazione_AA_1_Fascia/", "Estrazione_AA_2_Fascia/"),
+        "primaria":      ("Estrazione_EE_1_Fascia/", "Estrazione_EE_2_Fascia/"),
+        "secondaria_i":  ("Estrazione_MM_1_Fascia/", "Estrazione_MM_2_Fascia/"),
+        "secondaria_ii": ("Estrazione_SS_1_Fascia/", "Estrazione_SS_2_Fascia/"),
+    }
+
+    needed_folders = set()
+    codici_precomputed = []  # lista di (codice_raw, ordine_classe)
+    for cr in codici_validi:
+        if '|' in cr:
+            oc, cod = cr.split('|', 1)
+            oc = oc.strip().lower()
+        else:
+            oc, cod = None, cr
+        codici_precomputed.append((cr, oc, cod))
+        prefixes = ordine_to_prefix.get(oc)
+        if not prefixes:
+            continue
+        f1p, f2p = prefixes
+        if is_i_fascia_selected:
+            needed_folders.add(f1p)
+        elif is_ii_fascia_selected:
+            needed_folders.add(f2p)
+        else:
+            needed_folders.add(f1p)
+            needed_folders.add(f2p)
+
+    # --- Scarica SOLO le cartelle necessarie (2-4 chiamate API max) ---
     try:
         repo = g.get_repo(REPO_NAME)
-        root_files = get_all_repo_files(repo)
-        logger.info(f"Trovati {len(root_files)} file totali nel repository.")
+        root_files = get_files_from_folders(repo, list(needed_folders))
+        logger.info(f"Scaricati {len(root_files)} file da {len(needed_folders)} cartelle.")
     except Exception as e:
         return jsonify({"error": f"Impossibile accedere alla repository: {str(e)}"}), 500
 
     dizionario_scuole_altro = SCUOLE_FALLBACK
 
     logger.info(f"Regioni richieste: {regioni_richieste}")
-    logger.info(f"Province nomi ricevute: {province_nomi}")
+    logger.info(f"Province nomi ricevuti: {province_nomi}")
     
     province_sigle = []
     for prov in province_nomi:
@@ -756,13 +806,7 @@ def genera_pdf():
     
     logger.info(f"Province sigle finali: {province_sigle}")
 
-    for codice_raw in codici_validi:
-        if '|' in codice_raw:
-            ordine_classe, codice = codice_raw.split('|', 1)
-            ordine_classe = ordine_classe.strip().lower()
-        else:
-            ordine_classe = None
-            codice = codice_raw
+    for codice_raw, ordine_classe, codice in codici_precomputed:
 
         codice_upper = codice.upper()
         fascia_norm = normalize_string(fascia_richiesta) if fascia_richiesta else ""
@@ -809,16 +853,7 @@ def genera_pdf():
                            codice_upper in SEC_I_MUSICAL_CLASSI or
                            codice_upper in SEC_I_CSV_FILE_MAP or
                            codice_upper == "ADMM"))
-        fascia_upper = (fascia_richiesta or "").upper().strip()
-        is_i_fascia_selected = (fascia_upper == "I_FASCIA" or fascia_upper == "1_FASCIA" or fascia_upper == "IFASCIA")
-        is_ii_fascia_selected = (fascia_upper == "II_FASCIA" or fascia_upper == "2_FASCIA" or fascia_upper == "IIFASCIA")
 
-        ordine_to_prefix = {
-            "infanzia": ("Estrazione_AA_1_Fascia/", "Estrazione_AA_2_Fascia/"),
-            "primaria": ("Estrazione_EE_1_Fascia/", "Estrazione_EE_2_Fascia/"),
-            "secondaria_i": ("Estrazione_MM_1_Fascia/", "Estrazione_MM_2_Fascia/"),
-            "secondaria_ii": ("Estrazione_SS_1_Fascia/", "Estrazione_SS_2_Fascia/")
-        }
         prefixes = ordine_to_prefix.get(ordine_classe, ("", ""))
         f1_prefix, f2_prefix = prefixes
         
