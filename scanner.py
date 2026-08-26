@@ -1333,6 +1333,12 @@ def genera_bollettino():
                         if sigla:
                             _, nome = PROVINCE_DATA[sigla]
                             val_cog = str(row.get('COGNOME', '')).strip()
+                            
+                            # --- DEBUG ROVIGO GPS ---
+                            if nome == "Rovigo" and classe_key == "ADMM":
+                                logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}', Fascia={row.get('FASCIA')}, Pos={row.get('POSIZIONE')}")
+                            # -----------------------
+                            
                             if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
                                 key = (classe_key, nome)
                                 total_candidates[key] = total_candidates.get(key, 0) + 1
@@ -1382,6 +1388,12 @@ def genera_bollettino():
                 continue
 
             df.columns = [str(c).strip().upper() for c in df.columns]
+            
+            # --- DEBUG ROVIGO BOLLETTINO INTESTAZIONE ---
+            if codice == "ADMM":
+                logger.info(f"[DEBUG BOLLETTINO COLONNE] Colonne trovate in ADMM: {df.columns.tolist()}")
+            # -------------------------------------------
+            
             current_prov = None
             current_region = None
             current_prov_selected = False
@@ -1438,6 +1450,11 @@ def genera_bollettino():
 
                 if not current_prov_selected or current_prov is None:
                     continue
+                    
+                # --- DEBUG ROVIGO BOLLETTINO RIGHE ---
+                if current_prov == "Rovigo" and codice == "ADMM":
+                    logger.info(f"[DEBUG BOLLETTINO ROVIGO] Riga: Pos={row.get('POSIZIONE')}, Punt={row.get('PUNTEGGIO')}, Contratto={row.get('TIPO CONTRATTO')}, Cog={row.get('COGNOME ASPIRANTE')}")
+                # -------------------------------------
                     
                 fascia_raw = str(row.get('FASCIA', '')).strip().upper()
                 if fascia_raw not in ('F1', 'F2'):
