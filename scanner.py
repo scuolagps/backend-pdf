@@ -624,27 +624,22 @@ def get_all_repo_files(repo, path=""):
     return files
 
 # ====================================================================
-# FUNZIONE HELPER: DOWNLOAD ROBUSTO PER GESTIRE GIT LFS
+# FUNZIONE HELPER: DOWNLOAD ROBUSTO PER GESTIRE GIT LFS (DEBUG VERSION)
 # ====================================================================
 def download_github_file_robust(repo, file_obj):
-    """
-    Scarica il contenuto reale di un file GitHub gestendo anche file Git LFS.
-    Tenta in ordine:
-      1) API raw via PyGithub (migliore per LFS se autenticato)
-      2) download_url con header Authorization (LFS redirect autenticato)
-      3) raw.githubusercontent.com con token
-    Ritorna: bytes del contenuto o None se tutti i metodi falliscono.
-    """
+    logger.info(f"[DOWNLOAD DEBUG] Inizio download: {file_obj.path} (Size su GitHub: {getattr(file_obj, 'size', 'N/D')} bytes)")
+    
     # Metodo 1: API raw via PyGithub
     try:
         content = repo.get_contents(file_obj.path, ref=repo.default_branch)
         raw = content.decoded_content
-        # Se è un LFS pointer, decoded_content di solito ritorna il pointer (circa 130 bytes con 'version https://git-lfs')
         if raw and not raw.startswith(b'version https://git-lfs'):
             if len(raw) > 50 or b'404' not in raw[:20]:
+                logger.info(f"[DOWNLOAD DEBUG] Metodo 1 OK. Scaricati {len(raw)} bytes.")
                 return raw
+        logger.warning(f"[DOWNLOAD DEBUG] Metodo 1 fallito o file LFS pointer. Letti {len(raw) if raw else 0} bytes.")
     except Exception as e:
-        logger.debug(f"[DOWNLOAD] Metodo 1 (API raw) fallito per {file_obj.path}: {e}")
+        logger.warning(f"[DOWNLOAD DEBUG] Metodo 1 (API raw) fallito per {file_obj.path}: {e}")
 
     # Metodo 2: download_url con Authorization header
     try:
@@ -655,10 +650,11 @@ def download_github_file_robust(repo, file_obj):
         if hasattr(file_obj, 'download_url') and file_obj.download_url:
             resp = requests.get(file_obj.download_url, headers=headers, timeout=60)
             if resp.status_code == 200 and not resp.text.strip().startswith("404"):
+                logger.info(f"[DOWNLOAD DEBUG] Metodo 2 OK. Scaricati {len(resp.content)} bytes.")
                 return resp.content
-            logger.warning(f"[DOWNLOAD] download_url HTTP {resp.status_code} per {file_obj.path}")
+            logger.warning(f"[DOWNLOAD DEBUG] Metodo 2 fallito. HTTP {resp.status_code}. Scaricati {len(resp.content)} bytes.")
     except Exception as e:
-        logger.debug(f"[DOWNLOAD] Metodo 2 (download_url auth) fallito: {e}")
+        logger.warning(f"[DOWNLOAD DEBUG] Metodo 2 (download_url auth) fallito: {e}")
 
     # Metodo 3: raw.githubusercontent.com con token
     try:
@@ -668,12 +664,13 @@ def download_github_file_robust(repo, file_obj):
             headers["Authorization"] = f"token {GITHUB_TOKEN}"
         resp = requests.get(raw_url, headers=headers, timeout=60)
         if resp.status_code == 200:
+            logger.info(f"[DOWNLOAD DEBUG] Metodo 3 OK. Scaricati {len(resp.content)} bytes.")
             return resp.content
-        logger.warning(f"[DOWNLOAD] raw.githubusercontent HTTP {resp.status_code}")
+        logger.warning(f"[DOWNLOAD DEBUG] Metodo 3 fallito. HTTP {resp.status_code}. Scaricati {len(resp.content)} bytes.")
     except Exception as e:
-        logger.debug(f"[DOWNLOAD] Metodo 3 (raw.githubusercontent) fallito: {e}")
+        logger.warning(f"[DOWNLOAD DEBUG] Metodo 3 (raw.githubusercontent) fallito: {e}")
 
-    logger.error(f"[DOWNLOAD] TUTTI i metodi falliti per {file_obj.path}")
+    logger.error(f"[DOWNLOAD DEBUG] TUTTI i metodi falliti per {file_obj.path}")
     return None
 
 
@@ -1274,7 +1271,10 @@ def genera_bollettino():
 
         # 3. CONTA CANDIDATI TOTALI PER PROVINCIA
         total_candidates = {}
+        logger.info(f"[COUNT DEBUG] File graduatorie da processare: {len(grad_files)}")
+        
         for file_obj in grad_files:
+            logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} ---")
             try:
                 file_data = download_github_file_robust(repo, file_obj)
                 if file_data is None:
@@ -1284,13 +1284,30 @@ def genera_bollettino():
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
                 
+                logger.info(f"[COUNT DEBUG] Testo decodificato. Lunghezza: {len(csv_text)} caratteri.")
+                
                 # Sanity check: se il testo inizia con "404" o è troppo corto, salta
                 if csv_text.strip().startswith("404") or len(csv_text) < 50:
-                    logger.error(f"[BOLLETTINO] Contenuto invalido per {file_obj.name}: '{csv_text[:50]}'")
+                    logger.error(f"[BOLLETTINO] [COUNT DEBUG] Contenuto invalido per {file_obj.name}: '{csv_text[:100]}'")
+                    if "version https://git-lfs" in csv_text:
+                        logger.error(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Il file risulta essere un Git LFS Pointer non scaricato correttamente!")
                     continue
                     
-                df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                try:
+                    df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                    logger.info(f"[COUNT DEBUG] CSV letto da pandas con sep=';'. Righe totali: {len(df_grad)}. Colonne trovate: {list(df_grad.columns)}")
+                except Exception as e_parse:
+                    logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
+                    continue
+                    
                 df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
+                
+                # Verifica colonne aspettate
+                if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
+                    logger.warning(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Le colonne 'UFFICIO PROVINCIALE' o 'COGNOME' NON ESISTONO in questo file. Il conteggio candidati sarà 0.")
+                
+                rows_counted_total = 0
+                rows_counted_roma = 0
                 
                 for _, row in df_grad.iterrows():
                     val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
@@ -1301,9 +1318,18 @@ def genera_bollettino():
                             val_cog = str(row.get('COGNOME', '')).strip()
                             if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
                                 total_candidates[nome] = total_candidates.get(nome, 0) + 1
+                                rows_counted_total += 1
+                                if nome == "Roma":
+                                    rows_counted_roma += 1
+                                    
+                logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
+                logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
+                
             except Exception as e:
                 logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                 continue
+        
+        logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
         
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
 
