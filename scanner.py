@@ -1302,6 +1302,11 @@ def genera_bollettino():
                     
                 df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
                 
+                # FIX CRITICO: Propaghiamo il nome della provincia verso il basso per riempire 
+                # le celle vuote del PDF, altrimenti il conteggio salta migliaia di candidati!
+                if 'UFFICIO PROVINCIALE' in df_grad.columns:
+                    df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
+                
                 # Verifica colonne aspettate
                 if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
                     logger.warning(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Le colonne 'UFFICIO PROVINCIALE' o 'COGNOME' NON ESISTONO in questo file. Il conteggio candidati sarà 0.")
