@@ -1451,11 +1451,6 @@ def genera_bollettino():
                 if not current_prov_selected or current_prov is None:
                     continue
                     
-                # --- DEBUG ROVIGO BOLLETTINO RIGHE ---
-                if current_prov == "Rovigo" and codice == "ADMM":
-                    logger.info(f"[DEBUG BOLLETTINO ROVIGO] Riga: Pos={row.get('POSIZIONE')}, Punt={row.get('PUNTEGGIO')}, Contratto={row.get('TIPO CONTRATTO')}, Cog={row.get('COGNOME ASPIRANTE')}")
-                # -------------------------------------
-                    
                 fascia_raw = str(row.get('FASCIA', '')).strip().upper()
                 if fascia_raw not in ('F1', 'F2'):
                     continue
@@ -1468,11 +1463,17 @@ def genera_bollettino():
                         continue
                     pos = int(float(pos_val))
                     
-                    # FIX ANOMALIE PDF: Se la posizione supera i candidati totali della provincia, 
-                    # la riga è artefatta dal PDF (es. intestazioni ripetute). La SCARTIAMO.
-                    limite_candidati = total_candidates.get((codice, current_prov), 0)
-                    if limite_candidati > 0 and pos > limite_candidati:
-                        logger.warning(f"[ANOMALIA PDF SCARTATA] Prov: {current_prov} | Pos={pos} > Candidati={limite_candidati}. Riga ignorata.")
+                    cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
+                    nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
+
+                    # --- DEBUG ROVIGO BOLLETTINO RIGHE ---
+                    if current_prov == "Rovigo" and codice == "ADMM":
+                        logger.info(f"[DEBUG ROVIGO] Riga: Pos={pos}, Punt={row.get('PUNTEGGIO')}, Cog={cog}")
+                    # -------------------------------------
+
+                    parole_chiave_pdf = ["BOLLETTINO", "CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
+                    if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
+                        logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
                         continue
                         
                     punt_val = row.get('PUNTEGGIO')
@@ -1481,16 +1482,8 @@ def genera_bollettino():
                         continue
                         
                     contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
-                    cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
-                    nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
-                    
-                    # FIX INTESTAZIONI PDF: Scartiamo le righe spazzatura dove il nome/cognome contiene chiavi del PDF
-                    parole_chiave_pdf = ["BOLLETTINO", "CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE"]
-                    if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
-                        logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
-                        continue
-
                     codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
+                    
                     if cog in ('', 'NAN', 'NONE') or nom in ('', 'NAN', 'NONE'):
                         candidato_id = f"anonimo_{pos}_{codice_scuola}_{punt}"
                     else:
