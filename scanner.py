@@ -1390,22 +1390,19 @@ def genera_bollettino():
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
 
-                # FIX CRITICO: Il PDF convertito in CSV sballa la colonna UFFICIO PROVINCIALE sui cambi pagina.
-                # Determiniamo la provincia reale estraendola dal CODICE SCUOLA (es. 'RMMM...' -> 'RM').
-                val_prov = ""
-                if len(codice_scuola) >= 2 and codice_scuola[:2] in PROVINCE_DATA:
-                    val_prov = codice_scuola[:2]
-                else:
-                    val_prov = val_prov_raw
+                # FIX CRITICO: Estraiamo la provincia dal CODICE SCUOLA per evitare bug di allineamento del PDF.
+                # Se il codice scuola è vuoto/NAN, usiamo la colonna UFFICIO PROVINCIALE.
+                val_prov = val_prov_raw
+                if codice_scuola and codice_scuola not in ('NAN', 'NONE') and len(codice_scuola) >= 2:
+                    sigla_from_scuola = codice_scuola[:2]
+                    if sigla_from_scuola in PROVINCE_DATA:
+                        val_prov = sigla_from_scuola
 
                 if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
                     continue
 
-                if not val_classe or val_classe in ('nan', 'None'):
-                    continue
-
                 # FIX: Se la provincia è vuota, NON continuiamo ad attribuire le righe alla provincia precedente!
-                if not val_prov or val_prov in ('nan', 'None'):
+                if not val_prov or val_prov in ('nan', 'None', ''):
                     current_prov_selected = False
                     continue
 
@@ -1424,7 +1421,7 @@ def genera_bollettino():
                                 current_region = region
                                 current_prov_selected = False
                             break
-                
+
                 if not val_classe or val_classe in ('nan', 'None'):
                     continue
                 if not current_prov_selected or current_prov is None:
