@@ -1388,26 +1388,16 @@ def genera_bollettino():
             debug_mismatch_count = 0
 
             for _, row in df.iterrows():
-                val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
+                val_prov_raw = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
-                cog = str(row.get('COGNOME ASPIRANTE', '')).strip()
 
-                # DEBUG A: Verifica se UFFICIO PROVINCIALE è vuoto per qualunque provincia
-                if not val_prov or val_prov.upper() in ('NAN', 'NONE'):
-                    if debug_empty_count < 10:
-                        logger.warning(f"[DEBUG CSV] UFFICIO PROVINCIALE VUOTO. Codice Scuola='{codice_scuola}'. Cognome: {cog}")
-                        debug_empty_count += 1
+                # FIX CRITICO: Il PDF convertito in CSV sballa la colonna UFFICIO PROVINCIALE.
+                # Determiniamo la provincia reale estraendola dal CODICE SCUOLA (es. 'RM...' -> 'RM').
+                if len(codice_scuola) >= 2 and codice_scuola[:2] in PROVINCE_DATA:
+                    val_prov = codice_scuola[:2]
                 else:
-                    # DEBUG B: Verifica disallineamento per qualunque provincia (es. UFFICIO='ROMA' ma Codice Scuola inizia per 'RN')
-                    if len(codice_scuola) >= 2:
-                        sigla_scuola = codice_scuola[:2]
-                        if sigla_scuola in PROVINCE_DATA:
-                            sigla_dichiarata = to_sigla(val_prov)
-                            if sigla_dichiarata and sigla_dichiarata != sigla_scuola:
-                                if debug_mismatch_count < 10:
-                                    logger.warning(f"[DEBUG CSV] MISMATCH! UFFICIO='{val_prov}' ({sigla_dichiarata}) ma SCUOLA='{codice_scuola}' ({sigla_scuola}). Cognome: {cog}")
-                                    debug_mismatch_count += 1
+                    val_prov = val_prov_raw
 
                 if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
                     continue
