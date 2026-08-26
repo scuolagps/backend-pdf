@@ -1471,6 +1471,7 @@ def genera_bollettino():
                         logger.info(f"[DEBUG ROVIGO] Riga: Pos={pos}, Punt={row.get('PUNTEGGIO')}, Cog={cog}")
                     # -------------------------------------
 
+                    # FIX INTESTAZIONI PDF: Scartiamo le righe spazzatura dove il nome/cognome contiene chiavi del PDF
                     parole_chiave_pdf = ["BOLLETTINO", "CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
                     if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
                         logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
@@ -1484,10 +1485,12 @@ def genera_bollettino():
                     contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
                     codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
                     
-                    if cog in ('', 'NAN', 'NONE') or nom in ('', 'NAN', 'NONE'):
-                        candidato_id = f"anonimo_{pos}_{codice_scuola}_{punt}"
-                    else:
-                        candidato_id = f"{cog}_{nom}"
+                    # FIX CRITICO DEDUPLICAZIONE: Il bollettino spesso ha NOMI e COGNOMI vuoti.
+                    # Per evitare di conteggiare doppi/contratti multipli come persone diverse,
+                    # identifichiamo univocamente il candidato tramite la sua POSIZIONE in graduatoria.
+                    # Più contratti sulla stessa posizione = 1 sola persona nominata.
+                    candidato_id = f"{fascia_raw}_{pos}"
+                    
                 except (ValueError, TypeError):
                     continue
                     
