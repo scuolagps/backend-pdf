@@ -1333,13 +1333,20 @@ def genera_bollettino():
                         if sigla:
                             _, nome = PROVINCE_DATA[sigla]
                             val_cog = str(row.get('COGNOME', '')).strip()
+                            val_nom = str(row.get('NOME', '')).strip()
                             
                             # --- DEBUG ROVIGO GPS ---
                             if nome == "Rovigo" and classe_key == "ADMM":
                                 logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}', Fascia={row.get('FASCIA')}, Pos={row.get('POSIZIONE')}")
                             # -----------------------
                             
-                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
+                            # FIX CRITICO: Evitiamo di contare righe "spazzatura" generate dalle intestazioni 
+                            # del PDF (es. "BOLLETTINO" finito nella colonna COGNOME).
+                            parole_chiave_spazzatura = ["BOLLETTINO", "CLASSE DI CONCORSO", "UFFICIO PROVINCIALE", "NOMINATI"]
+                            is_spazzatura = any(parola in val_cog.upper() for parola in parole_chiave_spazzatura) or \
+                                            any(parola in val_nom.upper() for parola in parole_chiave_spazzatura)
+                            
+                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', '') and not is_spazzatura:
                                 key = (classe_key, nome)
                                 total_candidates[key] = total_candidates.get(key, 0) + 1
                                 rows_counted_total += 1
