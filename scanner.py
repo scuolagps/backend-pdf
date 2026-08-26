@@ -1466,8 +1466,15 @@ def genera_bollettino():
                 prov_data["nomine_totali"] += 1
                 prov_data["nominati_univoci"].add(candidato_id)
                 
+                # DEBUG MIRATO ROMA
+                if current_prov == "Roma" and codice == "ADMM":
+                    logger.info(f"[DEBUG NOMINA ROMA] Pos={pos} | Scuola={codice_scuola} | Cognome={cog} | Vecchio Max={prov_data['max_posizione']}")
+                
                 if pos > prov_data["max_posizione"]:
                     prov_data["max_posizione"] = pos
+                    # DEBUG QUANDO IL MAX VIENE AGGIORNATO
+                    if current_prov == "Roma" and codice == "ADMM":
+                        logger.warning(f"[DEBUG MAX POS ROMA] NUOVO MAX TROVATO={pos} | Scuola={codice_scuola}")
                     
                 if 'ANNUALE' in contratto:
                     if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
