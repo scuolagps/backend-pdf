@@ -879,18 +879,7 @@ def genera_pdf():
                         logger.error(f"[PDF] Contenuto invalido per {file_trovato.name}: '{csv_text[:50]}'")
                         continue
                         
-                    try:
-                        csv_io = io.StringIO(csv_text)
-                        # OTTIMIZZAZIONE RAM: Ignoriamo a priori le colonne inutili e pesanti (es. CF, Data di nascita)
-                        # In questo modo carichiamo tutte le colonne valide per il PDF, ma risparmiando il 60% di RAM.
-                        colonne_da_escludere = ['CODICE FISCALE', 'SESSO', 'DATA NASCITA', 'COMUNE NASCITA', 'PROVINCIA NASCITA', 'INDIRIZZO', 
-                                                'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 
-                                                'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
-                        df_temp = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True, 
-                                              usecols=lambda c: c.strip().upper() not in colonne_da_escludere)
-                    except Exception as e:
-                        logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
-                        continue
+                    # OTTIMIZZAZIONE RAM: Salviamo solo il testo, non il DataFrame!
                     fascia_nome = "DETTAGLI"
                     for cod_ric in codici_ricerca:
                         if cod_ric in file_trovato.name:
@@ -899,7 +888,7 @@ def genera_pdf():
                                 fascia_nome = parti[-1].replace("_", " ").replace(".csv", "").strip().upper()
                                 break
                     if not fascia_nome: fascia_nome = "DETTAGLI"
-                    lista_dati.append((df_temp, fascia_nome))
+                    lista_dati.append((csv_text, fascia_nome))
                 except Exception as e:
                     logger.error(f"Errore lettura file {file_trovato.name}: {str(e)}")
             if not lista_dati: continue
@@ -912,7 +901,19 @@ def genera_pdf():
                 return 3
             lista_dati.sort(key=lambda x: get_fascia_order(x[1]))
 
-            for df, nome_fascia in lista_dati:
+            for csv_text, nome_fascia in lista_dati:
+                # OTTIMIZZAZIONE RAM: Leggiamo il DataFrame adesso e lo eliminiamo a fine ciclo
+                try:
+                    csv_io = io.StringIO(csv_text)
+                    colonne_da_escludere = ['CODICE FISCALE', 'SESSO', 'DATA NASCITA', 'COMUNE NASCITA', 'PROVINCIA NASCITA', 'INDIRIZZO', 
+                                            'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 
+                                            'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
+                    df = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True, 
+                                          usecols=lambda c: c.strip().upper() not in colonne_da_escludere)
+                except Exception as e:
+                    logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
+                    continue
+
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
                 df.rename(columns={'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA', 'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'}, inplace=True, errors='ignore')
                 col_classe = None
@@ -1103,13 +1104,10 @@ def genera_pdf():
                 pdf.set_font("Helvetica", size=9)
                 row_height = 7
                 
-                # ==============================================================================
                 # OTTIMIZZAZIONE ESTREMA CICLO PDF
-                # Pre-calcoliamo i limiti dei caratteri UNA VOLTA SOLA prima del ciclo
                 col_char_lims = {}
                 for col in df.columns:
                     col_char_lims[col] = max(1, int(col_widths[col] / 2.0))
-                # ==============================================================================
 
                 for _, row in df.iterrows():
                     prov_changed = False
@@ -1146,7 +1144,6 @@ def genera_pdf():
                         pdf.set_font("Helvetica", size=9)
                     for col in df.columns:
                         valore = sanitize_for_fpdf(format_val(row[col]))
-                        # Usiamo il limite precalcolato
                         char_lim = col_char_lims[col]
                         if len(valore) > char_lim:
                             valore = valore[:char_lim-3] + "..."
@@ -1155,9 +1152,8 @@ def genera_pdf():
                     pdf.ln(row_height)
             
             # --- PULIZIA MEMORIA (ANTI-CRASH) ---
-            # Eliminiamo il DataFrame appena disegnato per fare spazio al successivo
-            import gc
             del df
+            del csv_text
             gc.collect()
             # ------------------------------------
             
@@ -1311,7 +1307,7 @@ def genera_bollettino():
                     continue
                     
                 try:
-                    # Carichiamo SOLO le colonne necessarie per il conteggio candidati
+                    # OTTIMIZZAZIONE RAM: Carichiamo SOLO le colonne necessarie per il conteggio candidati.
                     df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True, 
                                           usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME'])
                 except Exception as e_parse:
@@ -1320,8 +1316,6 @@ def genera_bollettino():
                     
                 df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
                 
-                # FIX CRITICO: Propaghiamo il nome della provincia verso il basso per riempire 
-                # le celle vuote del PDF, altrimenti il conteggio salta migliaia di candidati!
                 if 'UFFICIO PROVINCIALE' in df_grad.columns:
                     df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
                 
@@ -1331,7 +1325,6 @@ def genera_bollettino():
                 rows_counted_total = 0
                 rows_counted_roma = 0
                 
-                # Determina a quale classe appartiene questo file
                 classe_key = None
                 fname_upper = file_obj.name.upper()
                 for codice in codici_validi:
@@ -1351,13 +1344,9 @@ def genera_bollettino():
                             _, nome = PROVINCE_DATA[sigla]
                             val_cog = str(row.get('COGNOME', '')).strip()
                             
-                            # --- DEBUG ROVIGO GPS ---
                             if nome == "Rovigo" and classe_key == "ADMM":
                                 logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}', Fascia={row.get('FASCIA')}, Pos={row.get('POSIZIONE')}")
-                            # -----------------------
                             
-                            # BLOCCO DEFINITIVO: Conta semplicemente se il cognome non è vuoto.
-                            # Non filtra "BOLLETTINO" perché abbiamo scoperto che è un cognome reale!
                             if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
                                 key = (classe_key, nome)
                                 total_candidates[key] = total_candidates.get(key, 0) + 1
@@ -1367,6 +1356,12 @@ def genera_bollettino():
                                     
                 logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
                 logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
+                
+                # --- PULIZIA MEMORIA ---
+                del df_grad
+                del csv_text
+                gc.collect()
+                # ----------------------
                 
             except Exception as e:
                 logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
@@ -1395,7 +1390,7 @@ def genera_bollettino():
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
                 
-                # Carichiamo solo le colonne strettamente necessarie per le nomine
+                # OTTIMIZZAZIONE RAM: Carichiamo solo le colonne strettamente necessarie per le nomine
                 colonne_bollettino = ['UFFICIO PROVINCIALE', 'CLASSE DI CONCORSO', 'CODICE SCUOLA', 'FASCIA', 'POSIZIONE', 'COGNOME ASPIRANTE', 'NOME ASPIRANTE', 'PUNTEGGIO', 'TIPO CONTRATTO']
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True, 
                                 usecols=lambda c: c.strip().upper() in colonne_bollettino)
@@ -1419,7 +1414,6 @@ def genera_bollettino():
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
 
-                # FIX CRITICO: Estraiamo la provincia dal CODICE SCUOLA per evitare bug di allineamento del PDF.
                 val_prov = val_prov_raw
                 if codice_scuola and codice_scuola not in ('NAN', 'NONE') and len(codice_scuola) >= 2:
                     sigla_from_scuola = codice_scuola[:2]
@@ -1475,8 +1469,6 @@ def genera_bollettino():
                     cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
                     nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
 
-                    # FIX INTESTAZIONI PDF: Scartiamo le righe spazzatura del PDF. 
-                    # IMPORTANTE: "BOLLETTINO" è stato rimosso da questa lista perché è un cognome reale!
                     parole_chiave_pdf = ["CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
                     if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
                         logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
@@ -1490,7 +1482,6 @@ def genera_bollettino():
                     contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
                     codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
                     
-                    # FIX DEDUPLICAZIONE: Identifichiamo univocamente il candidato tramite la sua POSIZIONE in graduatoria.
                     candidato_id = f"{fascia_raw}_{pos}"
                     
                 except (ValueError, TypeError):
@@ -1520,6 +1511,12 @@ def genera_bollettino():
                 elif 'SPEZZONE' in contratto:
                     if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
                         prov_data["min_spezzoni"] = punt
+
+            # --- PULIZIA MEMORIA ---
+            del df
+            del csv_text
+            gc.collect()
+            # ----------------------
 
     except Exception as e:
         logger.error(f"[BOLLETTINO] Errore critico: {str(e)}", exc_info=True)
