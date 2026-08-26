@@ -1445,6 +1445,15 @@ def genera_bollettino():
                     if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
                         continue
                     pos = int(float(pos_val))
+                    
+                    # DEBUG PRECISO ANOMALIE: Se la posizione supera i candidati totali della provincia, 
+                    # stampiamo l'intera riga per capire come il PDF l'ha sballata.
+                    limite_candidati = total_candidates.get((codice, current_prov), 0)
+                    if limite_candidati > 0 and pos > limite_candidati:
+                        logger.warning(f"[ANOMALIA PDF] Prov: {current_prov} | Pos={pos} > Candidati={limite_candidati}.")
+                        logger.warning(f"[ANOMALIA PDF] Dettaglio riga: {row.to_dict()}")
+                        # Continuiamo a processarla per ora, ma ora abbiamo il log esatto di cosa sta leggendo il sistema
+                        
                     punt_val = row.get('PUNTEGGIO')
                     punt = pulisci_punteggio(punt_val)
                     if punt is None:
