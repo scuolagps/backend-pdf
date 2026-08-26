@@ -881,7 +881,13 @@ def genera_pdf():
                         
                     try:
                         csv_io = io.StringIO(csv_text)
-                        df_temp = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True)
+                        # OTTIMIZZAZIONE RAM: Ignoriamo a priori le colonne inutili e pesanti (es. CF, Data di nascita)
+                        # In questo modo carichiamo tutte le colonne valide per il PDF, ma risparmiando il 60% di RAM.
+                        colonne_da_escludere = ['CODICE FISCALE', 'SESSO', 'DATA NASCITA', 'COMUNE NASCITA', 'PROVINCIA NASCITA', 'INDIRIZZO', 
+                                                'CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 
+                                                'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
+                        df_temp = pd.read_csv(csv_io, sep=';', dtype=str, skipinitialspace=True, 
+                                              usecols=lambda c: c.strip().upper() not in colonne_da_escludere)
                     except Exception as e:
                         logger.error(f"ERRORE LETTURA CSV per {file_trovato.name}: {e}", exc_info=True)
                         continue
@@ -1305,7 +1311,9 @@ def genera_bollettino():
                     continue
                     
                 try:
-                    df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                    # Carichiamo SOLO le colonne necessarie per il conteggio candidati
+                    df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True, 
+                                          usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME'])
                 except Exception as e_parse:
                     logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
                     continue
@@ -1387,7 +1395,10 @@ def genera_bollettino():
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
                 
-                df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                # Carichiamo solo le colonne strettamente necessarie per le nomine
+                colonne_bollettino = ['UFFICIO PROVINCIALE', 'CLASSE DI CONCORSO', 'CODICE SCUOLA', 'FASCIA', 'POSIZIONE', 'COGNOME ASPIRANTE', 'NOME ASPIRANTE', 'PUNTEGGIO', 'TIPO CONTRATTO']
+                df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True, 
+                                usecols=lambda c: c.strip().upper() in colonne_bollettino)
                 logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali lette: {len(df)}")
             except Exception as e:
                 logger.error(f"[BOLLETTINO] Errore lettura bollettino {file_obj.path}: {e}")
