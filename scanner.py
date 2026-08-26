@@ -4,6 +4,7 @@ import io
 import logging
 import requests
 import base64
+import gc
 import statistics
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
@@ -946,8 +947,9 @@ def genera_pdf():
                     df = df.dropna(subset=[col_cognome])
                 if df.empty: continue
 
-                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'COGNOME', 'NOME', 'ORIGINE', 'INDICATORE DI PREFERENZE']
+                useless_cols = ['CODICE TIPOLOGIA LINGUA GRADUATORIA DI INCLUSIONE', 'INCLUSIONE CON RISERVA', 'ORIGINE', 'INDICATORE DI PREFERENZE', 'CODICE GRADUATORIA', 'TIPOLOGIA LINGUA', 'SESSO', 'DATA NASCITA', 'CODICE FISCALE']
                 df.columns = df.columns.astype(str).str.strip()
+                # Usiamo errors='ignore' per non far crashare se una colonna non esiste
                 df = df.drop(columns=[c for c in useless_cols if c in df.columns], errors='ignore')
                 col_punteggio_sep = None
                 for col in df.columns:
@@ -1140,6 +1142,12 @@ def genera_pdf():
                         align = 'L'
                         pdf.cell(col_widths[col], row_height, valore, border=1, align=align)
                     pdf.ln(row_height)
+            # --- AGGIUNGI QUESTE RIGHE PER LIBERARE LA MEMORIA ---
+            # Eliminiamo il DataFrame appena disegnato per fare spazio al successivo
+            del df
+            gc.collect()
+            # ----------------------------------------------------
+            
             pdf.ln(8)
             trovato_almeno_uno = True
         except Exception as e:
@@ -1162,9 +1170,14 @@ def genera_pdf():
     if not trovato_almeno_uno:
         pdf.cell(0, 10, text="Nessun dato disponibile per i filtri selezionati.", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     
-    pdf_bytes = pdf.output()
-    import base64
-    pdf_base64 = base64.b64encode(bytes(pdf_bytes)).decode('utf-8')
+    import gc
+    # Genera il PDF direttamente in byte ed encoded in Base64 in un solo passaggio
+    pdf_base64 = base64.b64encode(pdf.output()).decode('ascii')
+    
+    # Puliamo forzatamente la memoria prima di inviare la risposta
+    del pdf
+    gc.collect() 
+    
     logger.info(f"Generazione PDF completata. Stats inviate per {len(stats_data)} classi.")
     return jsonify({"pdf_base64": pdf_base64, "stats": stats_data})
 
