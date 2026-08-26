@@ -1427,6 +1427,27 @@ def genera_bollettino():
                 if not current_prov_selected or current_prov is None:
                     continue
                     
+                # DEBUG: Stampiamo le righe di Roma che vengono scartate dai filtri successivi
+                if current_prov == "Roma" and codice == "ADMM":
+                    fascia_raw_check = str(row.get('FASCIA', '')).strip().upper()
+                    pos_val_check = row.get('POSIZIONE')
+                    punt_val_check = row.get('PUNTEGGIO')
+                    
+                    scartata = False
+                    motivo = ""
+                    if fascia_raw_check not in ('F1', 'F2'):
+                        scartata = True
+                        motivo = f"FASCIA non valida ({fascia_raw_check})"
+                    elif pd.isna(pos_val_check) or pos_val_check == '' or pos_val_check == '*':
+                        scartata = True
+                        motivo = f"POSIZIONE vuota o asterisco ({pos_val_check})"
+                    elif pulisci_punteggio(punt_val_check) is None:
+                        scartata = True
+                        motivo = f"PUNTEGGIO non valido ({punt_val_check})"
+                        
+                    if scartata:
+                        logger.warning(f"[DEBUG SCARTATA ROMA] Motivo: {motivo} | Riga intera: {row.to_dict()}")
+
                 fascia_raw = str(row.get('FASCIA', '')).strip().upper()
                 if fascia_raw not in ('F1', 'F2'):
                     continue
