@@ -743,7 +743,10 @@ def genera_pdf():
     filtro_luogo = f"Regioni: {safe_regioni} | Province: {safe_province}"
     pdf.cell(0, 10, text=filtro_luogo, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
     pdf.ln(5)
-
+    
+    trovato_almeno_uno = False
+    stats_data = {}
+    province_scores = {}
     # --- Limite province per evitare OOM su Render (512MB) ---
     MAX_PROVINCE_PER_REQUEST = 50
     if len(province_nomi) > MAX_PROVINCE_PER_REQUEST:
