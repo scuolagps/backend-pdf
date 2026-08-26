@@ -1284,9 +1284,6 @@ def genera_bollettino():
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
                 
-                logger.info(f"[COUNT DEBUG] Testo decodificato. Lunghezza: {len(csv_text)} caratteri.")
-                
-                # Sanity check: se il testo inizia con "404" o è troppo corto, salta
                 if csv_text.strip().startswith("404") or len(csv_text) < 50:
                     logger.error(f"[BOLLETTINO] [COUNT DEBUG] Contenuto invalido per {file_obj.name}: '{csv_text[:100]}'")
                     if "version https://git-lfs" in csv_text:
@@ -1295,7 +1292,6 @@ def genera_bollettino():
                     
                 try:
                     df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
-                    logger.info(f"[COUNT DEBUG] CSV letto da pandas con sep=';'. Righe totali: {len(df_grad)}. Colonne trovate: {list(df_grad.columns)}")
                 except Exception as e_parse:
                     logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
                     continue
@@ -1307,7 +1303,6 @@ def genera_bollettino():
                 if 'UFFICIO PROVINCIALE' in df_grad.columns:
                     df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
                 
-                # Verifica colonne aspettate
                 if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
                     logger.warning(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Le colonne 'UFFICIO PROVINCIALE' o 'COGNOME' NON ESISTONO in questo file. Il conteggio candidati sarà 0.")
                 
@@ -1333,20 +1328,15 @@ def genera_bollettino():
                         if sigla:
                             _, nome = PROVINCE_DATA[sigla]
                             val_cog = str(row.get('COGNOME', '')).strip()
-                            val_nom = str(row.get('NOME', '')).strip()
                             
                             # --- DEBUG ROVIGO GPS ---
                             if nome == "Rovigo" and classe_key == "ADMM":
                                 logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}', Fascia={row.get('FASCIA')}, Pos={row.get('POSIZIONE')}")
                             # -----------------------
                             
-                            # FIX CRITICO: Evitiamo di contare righe "spazzatura" generate dalle intestazioni 
-                            # del PDF (es. "BOLLETTINO" finito nella colonna COGNOME).
-                            parole_chiave_spazzatura = ["BOLLETTINO", "CLASSE DI CONCORSO", "UFFICIO PROVINCIALE", "NOMINATI"]
-                            is_spazzatura = any(parola in val_cog.upper() for parola in parole_chiave_spazzatura) or \
-                                            any(parola in val_nom.upper() for parola in parole_chiave_spazzatura)
-                            
-                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', '') and not is_spazzatura:
+                            # BLOCCO DEFINITIVO: Conta semplicemente se il cognome non è vuoto.
+                            # Non filtra "BOLLETTINO" perché abbiamo scoperto che è un cognome reale!
+                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
                                 key = (classe_key, nome)
                                 total_candidates[key] = total_candidates.get(key, 0) + 1
                                 rows_counted_total += 1
@@ -1361,7 +1351,6 @@ def genera_bollettino():
                 continue
         
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
-        
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
@@ -1370,7 +1359,6 @@ def genera_bollettino():
             codice = b_entry["codice"]
             file_obj = b_entry["file"]
             try:
-                # Usa la funzione robusta per scaricare il contenuto reale
                 file_data = download_github_file_robust(repo, file_obj)
                 if file_data is None:
                     logger.error(f"[BOLLETTINO] Download fallito per {file_obj.name}, salto classe {codice}")
@@ -1379,14 +1367,11 @@ def genera_bollettino():
                 csv_text = file_data.decode('utf-8-sig', errors='ignore')
                 csv_text = clean_csv_text(csv_text)
                 
-                # Sanity check critico per evitare di parsare errori HTTP
                 if csv_text.strip().startswith("404") or len(csv_text) < 50:
                     logger.error(f"[BOLLETTINO] File {file_obj.name} contiene errore HTTP invece del CSV.")
-                    logger.error(f"[BOLLETTINO] Possibile causa: file Git-LFS non accessibile. Contenuto: '{csv_text[:100]}'")
                     continue
                 
                 logger.info(f"[BOLLETTINO] DEBUG: Lettura file {file_obj.name}. Dimensioni testo: {len(csv_text)} caratteri.")
-                logger.info(f"[BOLLETTINO] DEBUG: Primi 100 caratteri del file: {csv_text[:100]}")
                 
                 df = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
                 logger.info(f"[BOLLETTINO] Elaborazione bollettino per {codice}. Righe totali lette: {len(df)}")
@@ -1395,11 +1380,6 @@ def genera_bollettino():
                 continue
 
             df.columns = [str(c).strip().upper() for c in df.columns]
-            
-            # --- DEBUG ROVIGO BOLLETTINO INTESTAZIONE ---
-            if codice == "ADMM":
-                logger.info(f"[DEBUG BOLLETTINO COLONNE] Colonne trovate in ADMM: {df.columns.tolist()}")
-            # -------------------------------------------
             
             current_prov = None
             current_region = None
@@ -1415,15 +1395,12 @@ def genera_bollettino():
                 codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
 
                 # FIX CRITICO: Estraiamo la provincia dal CODICE SCUOLA per evitare bug di allineamento del PDF.
-                # Se il codice scuola è vuoto/NAN, usiamo la colonna UFFICIO PROVINCIALE.
                 val_prov = val_prov_raw
                 if codice_scuola and codice_scuola not in ('NAN', 'NONE') and len(codice_scuola) >= 2:
                     sigla_from_scuola = codice_scuola[:2]
                     if sigla_from_scuola in PROVINCE_DATA:
                         val_prov = sigla_from_scuola
                         
-                        # VALIDATION LOG: Se il PDF era sballato, la colonna UFFICIO e la Scuola non matchano.
-                        # Stampiamo solo i primi 10 casi per verificare che il fix sta lavorando.
                         sigla_from_raw = to_sigla(val_prov_raw)
                         if sigla_from_raw and sigla_from_raw != sigla_from_scuola and debug_mismatch_global < 10:
                             logger.info(f"[VALIDATION FIX] UFFICIO diceva '{val_prov_raw}' ({sigla_from_raw}), ma Scuola '{codice_scuola}' -> Usata {sigla_from_scuola}.")
@@ -1473,13 +1450,9 @@ def genera_bollettino():
                     cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
                     nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
 
-                    # --- DEBUG ROVIGO BOLLETTINO RIGHE ---
-                    if current_prov == "Rovigo" and codice == "ADMM":
-                        logger.info(f"[DEBUG ROVIGO] Riga: Pos={pos}, Punt={row.get('PUNTEGGIO')}, Cog={cog}")
-                    # -------------------------------------
-
-                    # FIX INTESTAZIONI PDF: Scartiamo le righe spazzatura dove il nome/cognome contiene chiavi del PDF
-                    parole_chiave_pdf = ["BOLLETTINO", "CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
+                    # FIX INTESTAZIONI PDF: Scartiamo le righe spazzatura del PDF. 
+                    # IMPORTANTE: "BOLLETTINO" è stato rimosso da questa lista perché è un cognome reale!
+                    parole_chiave_pdf = ["CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
                     if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
                         logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
                         continue
@@ -1492,10 +1465,7 @@ def genera_bollettino():
                     contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
                     codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
                     
-                    # FIX CRITICO DEDUPLICAZIONE: Il bollettino spesso ha NOMI e COGNOMI vuoti.
-                    # Per evitare di conteggiare doppi/contratti multipli come persone diverse,
-                    # identifichiamo univocamente il candidato tramite la sua POSIZIONE in graduatoria.
-                    # Più contratti sulla stessa posizione = 1 sola persona nominata.
+                    # FIX DEDUPLICAZIONE: Identifichiamo univocamente il candidato tramite la sua POSIZIONE in graduatoria.
                     candidato_id = f"{fascia_raw}_{pos}"
                     
                 except (ValueError, TypeError):
