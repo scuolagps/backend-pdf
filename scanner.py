@@ -1269,7 +1269,7 @@ def genera_bollettino():
         
         grad_files = list(grad_files_set)
 
-        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE)
         total_candidates = {}
         logger.info(f"[COUNT DEBUG] File graduatorie da processare: {len(grad_files)}")
         
@@ -1309,6 +1309,18 @@ def genera_bollettino():
                 rows_counted_total = 0
                 rows_counted_roma = 0
                 
+                # Determina a quale classe appartiene questo file
+                classe_key = None
+                fname_upper = file_obj.name.upper()
+                for codice in codici_validi:
+                    possible = CODICI_EQUIVALENTI.get(codice, set())
+                    possible.add(codice)
+                    if any(pc in fname_upper for pc in possible):
+                        classe_key = codice
+                        break
+                if not classe_key:
+                    classe_key = codici_validi[0]
+
                 for _, row in df_grad.iterrows():
                     val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                     if val_prov and val_prov.upper() not in ('NAN', 'NONE'):
@@ -1317,7 +1329,8 @@ def genera_bollettino():
                             _, nome = PROVINCE_DATA[sigla]
                             val_cog = str(row.get('COGNOME', '')).strip()
                             if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
-                                total_candidates[nome] = total_candidates.get(nome, 0) + 1
+                                key = (classe_key, nome)
+                                total_candidates[key] = total_candidates.get(key, 0) + 1
                                 rows_counted_total += 1
                                 if nome == "Roma":
                                     rows_counted_roma += 1
@@ -1463,7 +1476,7 @@ def genera_bollettino():
     for codice, res in results.items():
         out_data[codice] = []
         for prov, r in res.items():
-            tot_cand = total_candidates.get(prov, 0)
+            tot_cand = total_candidates.get((codice, prov), 0)
             nominati_univoci = len(r["nominati_univoci"])
             
             assorbimento = round((nominati_univoci / tot_cand) * 100, 2) if tot_cand > 0 else 0
