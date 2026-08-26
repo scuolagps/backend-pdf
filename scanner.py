@@ -1383,26 +1383,32 @@ def genera_bollettino():
             
             if codice not in results: results[codice] = {}
             
-            # Variabile di debug per non intasare i log
-            debug_rom_count = 0
+
 
             for _, row in df.iterrows():
-                val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
+                val_prov_raw = str(row.get('UFFICIO PROVINCIALE', '')).strip()
                 val_classe = str(row.get('CLASSE DI CONCORSO', '')).strip()
                 codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
-                cog = str(row.get('COGNOME ASPIRANTE', '')).strip()
-                pos_val = row.get('POSIZIONE', '')
 
-                # DEBUG MIRATO: Stampiamo le righe dove la provincia dichiarata è Roma o il codice scuola inizia per RM
-                if val_prov.upper() == 'ROMA' or codice_scuola.startswith('RM'):
-                    if debug_rom_count < 15:
-                        logger.info(f"[DEBUG ROMA] Riga scansionata -> UFFICIO='{val_prov}' | CLASSE='{val_classe}' | POS='{pos_val}' | SCUOLA='{codice_scuola}' | COGNOME='{cog}'")
-                        debug_rom_count += 1
-                
+                # FIX CRITICO: Il PDF convertito in CSV sballa la colonna UFFICIO PROVINCIALE sui cambi pagina.
+                # Determiniamo la provincia reale estraendola dal CODICE SCUOLA (es. 'RMMM...' -> 'RM').
+                val_prov = ""
+                if len(codice_scuola) >= 2 and codice_scuola[:2] in PROVINCE_DATA:
+                    val_prov = codice_scuola[:2]
+                else:
+                    val_prov = val_prov_raw
+
                 if 'NOMINA' in val_prov.upper() or 'NOMINA' in val_classe.upper():
                     continue
-                
-                # ... il resto del tuo codice originale continua da qui ...
+
+                if not val_classe or val_classe in ('nan', 'None'):
+                    continue
+
+                # FIX: Se la provincia è vuota, NON continuiamo ad attribuire le righe alla provincia precedente!
+                if not val_prov or val_prov in ('nan', 'None'):
+                    current_prov_selected = False
+                    continue
+
                 if val_prov and val_prov not in ('nan', 'None'):
                     for sigla, (region, nome) in PROVINCE_DATA.items():
                         if val_prov.upper() == nome.upper() or to_sigla(val_prov) == sigla:
