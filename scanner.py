@@ -97,7 +97,7 @@ PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items(
 
 SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
-SEC_I_CLASSI = {"A-01", "A-22", "AA25", "AB25", "AC25", "AD25", "AE25", "A-23", "A-28", "A-30", "A-48", "A-60", "AM01", "AM12", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A-82", "A-86", "A084", "A085", "IRC", "ADMM"}
+SEC_I_CLASSI = {"A-01", "A-22", "AA25", "AB25", "AC25", "AD25", "AE25", "A-23", "A-28", "A-30", "A-48", "A-49", "A-60", "AM01", "AM12", "AM22", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A-82", "A-86", "A084", "A085", "IRC", "ADMM"}
 
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 SEC_I_MUSICAL_NAMES = {
@@ -1164,9 +1164,10 @@ def genera_pdf():
                         cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
                     prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
                 else:
-                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+                    prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+                    prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV"
                 
-                if f.name.upper().startswith(prefix) and f.name.lower().endswith('.csv'):
+                if (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv'):
                     if f.name in nomi_file_visti: break
                     file_da_elaborare.append(f)
                     nomi_file_visti.add(f.name)
