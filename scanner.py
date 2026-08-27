@@ -135,23 +135,181 @@ SEC_I_CSV_FILE_MAP = {
     "AM48": "A-48 (Scienze Motorie).csv", "IRC": "IRC (Religione Cattolica).csv",
 }
 
-CODICI_EQUIVALENTI = {
-    "A011": {"A011", "A-01", "AM01"}, "A-01": {"A011", "A-01", "AM01"}, "AM01": {"A011", "A-01", "AM01"},
-    "A019": {"A019", "A020", "A-12", "AM12"}, "A020": {"A019", "A020", "A-12", "AM12"},
-    "A-12": {"A019", "A020", "A-12", "AM12"}, "AM12": {"A019", "A020", "A-12", "AM12"},
-    "A016": {"A016", "AA22", "AM2A"}, "AA22": {"A016", "AA22", "AM2A"}, "AM2A": {"A016", "AA22", "AM2A"},
-    "A018": {"A018", "AB22", "AM2B"}, "AB22": {"A018", "AB22", "AM2B"}, "AM2B": {"A018", "AB22", "AM2B"},
-    "A023": {"A023", "A-23", "AC22", "AM2C"}, "A-23": {"A023", "A-23", "AC22", "AM2C"}, "AC22": {"A023", "AC22", "AM2C"}, "AM2C": {"A023", "AC22", "AM2C"},
-    "A024": {"A024", "AD22", "AM2D"}, "AD22": {"A024", "AD22", "AM2D"}, "AM2D": {"A024", "AD22", "AM2D"},
-    "AE22": {"AE22", "AM2E"}, "AM2E": {"AE22", "AM2E"},
-    "A013": {"A013", "A-30", "AM30"}, "A-30": {"A013", "A-30", "AM30"}, "AM30": {"A013", "A-30", "AM30"},
-    "A015": {"A015", "A-48", "AM48"}, "A-48": {"A015", "A-48", "AM48"}, "AM48": {"A015", "A-48", "AM48"},
-    "A021": {"A021", "A-28", "A028"}, "A-28": {"A021", "A-28", "A028"}, "A028": {"A021", "A-28", "A028"},
-    "A014": {"A014", "A-60", "A060"}, "A-60": {"A014", "A-60", "A060"}, "A060": {"A014", "A-60", "A060"},
-    "A012": {"A012", "A046", "A047"}, 
-    "A076": {"A076", "A030", "A031"}, 
-    "IRC":  {"IRC", "A079", "A080", "A081", "A083"}, 
+# ====================================================================
+# REGISTRO UNICO CLASSI DI CONCORSO (una sola denominazione per grado+fascia)
+#   label : voce UNICA del menu a tendina
+#   alias : TUTTI i codici con cui la classe compare nei NOMI dei FILE
+#           (estrazioni E bollettini), vecchi e nuovi
+#   extra_estrazione : traduzioni legacy valide SOLO per le cartelle
+#           Estrazione_* (comportamento pre-esistente, non toccare)
+#   scuole: file CSV in "Numero scuole ..." | "MUSICALI" | "TOTALI_MM"
+# Le fasce I/II sono già gestite dalle cartelle: nessuna duplicazione.
+# ====================================================================
+CLASSI_REGISTRY = {
+    "infanzia": {
+        "AAAA": {"label": "AAAA - Classe AAAA", "alias": {"AAAA"}},
+        "AAHN": {"label": "AAHN - Classe AAHN", "alias": {"AAHN"}},
+        "AAIN": {"label": "AAIN - Classe AAIN", "alias": {"AAIN"}},
+        "AALN": {"label": "AALN - Classe AALN", "alias": {"AALN"}},
+        "ADAA": {"label": "ADAA - Classe ADAA", "alias": {"ADAA"}},
+    },
+    "primaria": {
+        "EEEE": {"label": "EEEE - Classe EEEE", "alias": {"EEEE"}},
+        "ADEE": {"label": "ADEE - Classe ADEE", "alias": {"ADEE"}},
+        "EEEM": {"label": "EEEM - Classe EEEM", "alias": {"EEEM"}},
+        "EEHN": {"label": "EEHN - Classe EEHN", "alias": {"EEHN"}},
+        "EEIN": {"label": "EEIN - Classe EEIN", "alias": {"EEIN"}},
+        "EELN": {"label": "EELN - Classe EELN", "alias": {"EELN"}},
+    },
+    "secondaria_i": {
+        "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
+        "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A011", "A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
+        "A-12": {"label": "A-12 - Lettere (Italiano, Storia, Geografia)", "alias": {"A019", "A020", "A-12", "AM12"}, "scuole": "A-12 (Lettere).csv"},
+        "AA22": {"label": "AA22 - Francese (A-22)", "alias": {"A016", "AA22", "AM2A"}, "scuole": "A-22 (AA22 Francese).csv"},
+        "AB22": {"label": "AB22 - Inglese e Altra Lingua (A-22)", "alias": {"A018", "AB22", "AM2B"}, "scuole": "A-22 (AB22 IngleseAltra Lingua).csv"},
+        "AC22": {"label": "AC22 - Spagnolo (A-22)", "alias": {"A023", "AC22", "AM2C"}, "scuole": "A-22 (AC22 Spagnolo).csv"},
+        "AD22": {"label": "AD22 - Tedesco (A-22)", "alias": {"A024", "AD22", "AM2D"}, "scuole": "A-22 (AD22 Tedesco).csv"},
+        "AE22": {"label": "AE22 - Sloveno (A-22)", "alias": {"AE22", "AM2E"}, "scuole": "A-22 (AE22 Sloveno).csv"},
+        "AM2F": {"label": "AM2F - Altra lingua", "alias": {"AM2F"}},
+        "AM2G": {"label": "AM2G - Altra lingua", "alias": {"AM2G"}},
+        "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
+        "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A021", "A028", "A-28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
+        "A-30": {"label": "A-30 - Musica", "alias": {"A013", "A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
+        "A-48": {"label": "A-48 - Scienze Motorie", "alias": {"A015", "A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
+        "A-60": {"label": "A-60 - Tecnologia", "alias": {"A014", "A060", "A-60"}, "scuole": "A-60 (Tecnologia).csv"},
+        "AM70": {"label": "AM70 - Classe AM70", "alias": {"AM70"}},
+        "AM71": {"label": "AM71 - Classe AM71", "alias": {"AM71"}},
+        "A077": {"label": "A077 - Musica d'insieme (Sec. I grado)", "alias": {"A077"}},
+        "A078": {"label": "A078 - Teoria, lettura ed esecuzione musicale", "alias": {"A078"}},
+        "A084": {"label": "A084 - Classe A084", "alias": {"A084"}},
+        "A085": {"label": "A085 - Classe A085", "alias": {"A085"}},
+        "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC", "A079", "A080", "A081", "A083"}, "scuole": "IRC (Religione Cattolica).csv"},
+    },
+    "secondaria_ii": {
+        "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS"}},
+        "A001": {"label": "A001 - Disegno e storia dell'arte", "alias": {"A001"}, "scuole": "A-01 (Disegno e storia dell'arte).csv"},
+        "A027": {"label": "A027 - Musica", "alias": {"A027"}, "scuole": "A-30 (Musica).csv"},
+        "A054": {"label": "A054 - Tecnologie di produzioni animali", "alias": {"A054"}, "scuole": "A-52 (Tecnologie di produzioni animali).csv"},
+        "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC", "A079", "A080", "A081", "A083"}, "scuole": "IRC (Religione Cattolica).csv"},
+    },
 }
+
+# File "Numero scuole II grado": codice NUOVO (menu) -> codice VECCHIO (nome file)
+# mappati per DENOMINAZIONE identica (fonte: SEC_II_CSV_FILE_MAP)
+SEC_II_SCUOLE_MAP = {
+    "A002": "A-02 (Design metalli, oreficeria, pietre).csv",
+    "A003": "A-07 (Discipline audiovisive).csv",
+    "A004": "A-08 (Discipline geometriche, architettura, scenotecnica).csv",
+    "A005": "A-05 (Design del tessuto e della moda).csv",
+    "A006": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
+    "A007": "A-14 (Discipline plastiche e scultoree).csv",
+    "A008": "A-12 (Discipline letterarie).csv",
+    "A009": "A-13 (Lettere, latino e greco - Liceo Classico).csv",
+    "A010": "A-16 (Modellazione odontotecnica).csv",
+    "A011": "A-11 (Lettere e latino).csv",
+    "A013": "A-15 (Discipline sanitarie).csv",
+    "A014": "A-18 (Filosofia e scienze umane).csv",
+    "A015": "A-19 (Filosofia e storia).csv",
+    "A016": "A-20 (Fisica).csv",
+    "A018": "A-21 (Geografia).csv",
+    "A019": "A-23 (Italiano L2).csv",
+    "A020": "A-24 (Lingue e culture dell'Asia orientale e sud-orientale).csv",
+    "A021": "A-26 (Matematica).csv",
+    "A026": "A-27 (Matematica e fisica).csv",
+    "A033": "A-31 (Scienze degli alimenti).csv",
+    "A034": "A-32 (Scienze della geologia e della mineralogia).csv",
+    "A035": "A-33 (Scienze e tecnologie aeronautiche).csv",
+    "A036": "A-34 (Scienze e tecnologie chimiche).csv",
+    "A037": "A-36 (Scienze e tecnologie della logistica).csv",
+    "A038": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
+    "A039": "A-38 (Costruzioni aeronautiche).csv",
+    "A040": "A-39 (Costruzioni navali).csv",
+    "A041": "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv",
+    "A042": "A-41 (Scienze e tecnologie informatiche).csv",
+    "A043": "A-42 (Scienze e tecnologie meccaniche).csv",
+    "A044": "A-43 (Scienze e tecnologie nautiche).csv",
+    "A045": "A-44 (Tecnologie tessili, abbigliamento e moda).csv",
+    "A046": "A-45 (Scienze economico-aziendali).csv",
+    "A047": "A-46 (Scienze giuridico-economiche).csv",
+    "A050": "A-47 (Diritto ed economia politica).csv",
+    "A051": "A-48 (Scienze motorie e sportive).csv",
+    "A052": "A-50 (Scienze naturali, chimiche e biologiche).csv",
+    "A053": "A-51 (Tecnologie agrarie).csv",
+    "A057": "A-53 (Storia).csv",
+    "A058": "A-54 (Storia dell'arte).csv",
+    "A059": "A-57 (Tecnica della danza classica).csv",
+    "A061": "A-58 (Tecnica della danza contemporanea).csv",
+    "A062": "A-60 (Storia della musica e della danza).csv",
+    "A063": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
+    "A064": "A-62 (Tecnologie e tecniche per la grafica).csv",
+    "A065": "A-63 (Tecnologie musicali).csv",
+    "A066": "A-64 (Teoria, analisi e composizione).csv",
+}
+
+# Strumenti musicali: univoci e con nome (xx56 Sec I, xx55 Sec II)
+_STRUMENTI = [("AA","Arpa"),("AB","Chitarra"),("AC","Clarinetto"),("AD","Contrabbasso"),
+              ("AE","Fagotto"),("AF","Flauto"),("AG","Oboe"),("AH","Pianoforte"),
+              ("AI","Sassofono"),("AJ","Tromba"),("AK","Trombone"),("AL","Viola"),
+              ("AM","Violino"),("AN","Violoncello")]
+for _p, _n in _STRUMENTI:
+    CLASSI_REGISTRY["secondaria_i"][f"{_p}56"] = {"label": f"{_p}56 - {_n}", "alias": {f"{_p}56"}, "scuole": "MUSICALI"}
+    CLASSI_REGISTRY["secondaria_ii"][f"{_p}55"] = {"label": f"{_p}55 - {_n}", "alias": {f"{_p}55"}, "scuole": "A-55 (Strumento musicale).csv"}
+
+# Codici Sec. II con denominazione nota (file presenti in Estrazione_SS_*)
+_SEC_II_NOMI = {
+    "A002":"A002 - Design metalli, oreficeria, pietre","A003":"A003 - Discipline audiovisive",
+    "A004":"A004 - Discipline geometriche, architettura, scenotecnica","A005":"A005 - Design del tessuto e della moda",
+    "A006":"A006 - Discipline grafiche, pittoriche, scenografiche","A007":"A007 - Discipline plastiche e scultoree",
+    "A008":"A008 - Discipline letterarie","A009":"A009 - Lettere, latino e greco - Liceo Classico",
+    "A010":"A010 - Modellazione odontotecnica","A011":"A011 - Lettere e latino",
+    "A013":"A013 - Discipline sanitarie","A014":"A014 - Filosofia e scienze umane",
+    "A015":"A015 - Filosofia e storia","A016":"A016 - Fisica","A018":"A018 - Geografia",
+    "A019":"A019 - Italiano L2","A020":"A020 - Lingue e culture dell'Asia orientale e sud-orientale",
+    "A021":"A021 - Matematica","A026":"A026 - Matematica e fisica",
+    "A033":"A033 - Scienze degli alimenti","A034":"A034 - Scienze della geologia e della mineralogia",
+    "A035":"A035 - Scienze e tecnologie aeronautiche","A036":"A036 - Scienze e tecnologie chimiche",
+    "A037":"A037 - Scienze e tecnologie della logistica","A038":"A038 - Tecnologie delle costruzioni e rappresentazione grafica",
+    "A039":"A039 - Costruzioni aeronautiche","A040":"A040 - Costruzioni navali",
+    "A041":"A041 - Scienze e tecnologie elettriche ed elettroniche","A042":"A042 - Scienze e tecnologie informatiche",
+    "A043":"A043 - Scienze e tecnologie meccaniche","A044":"A044 - Scienze e tecnologie nautiche",
+    "A045":"A045 - Tecnologie tessili, abbigliamento e moda","A046":"A046 - Scienze economico-aziendali",
+    "A047":"A047 - Scienze giuridico-economiche","A050":"A050 - Diritto ed economia politica",
+    "A051":"A051 - Scienze motorie e sportive","A052":"A052 - Scienze naturali, chimiche e biologiche",
+    "A053":"A053 - Tecnologie agrarie","A057":"A057 - Storia","A058":"A058 - Storia dell'arte",
+    "A059":"A059 - Tecnica della danza classica","A061":"A061 - Tecnica della danza contemporanea",
+    "A062":"A062 - Storia della musica e della danza","A063":"A063 - Tecnologie e tecniche delle comunicazioni multimediali",
+    "A064":"A064 - Tecnologie e tecniche per la grafica","A065":"A065 - Tecnologie musicali",
+    "A066":"A066 - Teoria, analisi e composizione",
+}
+# Codici Sec. II senza denominazione nota: voce neutra ma UNIVOCA (file esistenti)
+_SEC_II_GENERICI = (["A082","A086","AM12","AM2A","AM2B","AM2C","AM2D","AM48",
+                     "AS12","AS2A","AS2B","AS2C","AS2D","AS2E","AS2F","AS2H","AS2I","AS2J",
+                     "AS2K","AS2L","AS2M","AS2N","AS30","AS48","AS55","AS71",
+                     "AO55","AP55","AQ55","AR55","AT55","AU55","AV55","AW55"]
+                    + [f"B0{n:02d}" for n in range(3, 34)]
+                    + [f"{p}02" for p in ("BA","BB","BC","BD","BE","BF","BG","BH","BI","BJ","BK","BL","BM","BN")])
+for _c, _l in _SEC_II_NOMI.items():
+    CLASSI_REGISTRY["secondaria_ii"].setdefault(_c, {"label": _l, "alias": {_c}})
+for _c in _SEC_II_GENERICI:
+    CLASSI_REGISTRY["secondaria_ii"].setdefault(_c, {"label": f"{_c} - Classe {_c}", "alias": {_c}})
+# Collega i file scuole anche alle voci generate sopra
+for _c, _f in SEC_II_SCUOLE_MAP.items():
+    _e = CLASSI_REGISTRY["secondaria_ii"].get(_c)
+    if _e is not None and not _e.get("scuole"):
+        _e["scuole"] = _f
+for _c in ["AO55","AP55","AQ55","AR55","AS55","AT55","AU55","AV55","AW55"]:
+    CLASSI_REGISTRY["secondaria_ii"][_c]["scuole"] = "A-55 (Strumento musicale).csv"
+
+def get_registry_entry(ordine_classe, codice):
+    """Ritorna (codice_canonico, entry) del REGISTRO per il grado richiesto."""
+    cod = str(codice).strip().upper()
+    registry = CLASSI_REGISTRY.get((ordine_classe or "").lower(), {})
+    if cod in registry:
+        return cod, registry[cod]
+    for key, e in registry.items():          # retrocompatibilità: cerca per alias
+        if cod in e["alias"]:
+            return key, e
+    return cod, {"label": cod, "alias": {cod}, "extra_estrazione": set(), "scuole": None}
 
 SEC_II_FOLDER = "Numero scuole II grado"
 SEC_II_PREFIX = SEC_II_FOLDER + "/"
@@ -462,9 +620,10 @@ def get_scuole_dict(repo, is_musical=False):
         logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}", exc_info=True)
         return SCUOLE_FALLBACK
 
-def get_scuole_dict_from_csv(repo, codice):
+def get_scuole_dict_from_csv(repo, codice, csv_filename=None):
     global _SCUOLE_CSV_CACHE
-    csv_filename = SEC_I_CSV_FILE_MAP.get(codice)
+    if csv_filename is None:
+        csv_filename = SEC_I_CSV_FILE_MAP.get(codice)
     if not csv_filename:
         return None
     if csv_filename in _SCUOLE_CSV_CACHE:
@@ -536,13 +695,14 @@ def get_scuole_dict_from_csv(repo, codice):
         logger.error(f"Errore critico nel caricamento del CSV scuole per {codice} ({csv_filename}): {e}")
         return None
 
-def get_scuole_dict_sec_ii_from_csv(repo, codice):
+def get_scuole_dict_sec_ii_from_csv(repo, codice, csv_filename=None):
     global _SCUOLE_SEC_II_CSV_CACHE
     codice_upper = codice.upper()
-    if codice_upper in SEC_II_MUSICAL_CLASSI:
-        csv_filename = "A-55 (Strumento musicale).csv"
-    else:
-        csv_filename = SEC_II_CSV_FILE_MAP.get(codice_upper) or SEC_II_CSV_FILE_MAP.get(codice)
+    if not csv_filename:
+        if codice_upper in SEC_II_MUSICAL_CLASSI:
+            csv_filename = "A-55 (Strumento musicale).csv"
+        else:
+            csv_filename = SEC_II_CSV_FILE_MAP.get(codice_upper) or SEC_II_CSV_FILE_MAP.get(codice)
     if not csv_filename:
         return None
     if csv_filename in _SCUOLE_SEC_II_CSV_CACHE:
@@ -816,41 +976,31 @@ def genera_pdf():
 
         is_sec_ii = (ordine_classe == "secondaria_ii")
 
-        if is_sec_ii:
+        # --- Alias UNIVOCI per grado (fonte unica: CLASSI_REGISTRY) ---
+        ordine_key = ("secondaria_ii" if is_sec_ii else (ordine_classe or "")).lower()
+        codice_canonico, entry = get_registry_entry(ordine_key, codice_upper)
+        codici_ricerca = {c.upper() for c in entry["alias"]}
+        codici_ricerca |= {c.upper() for c in entry.get("extra_estrazione", set())}
+        if not codici_ricerca:
             codici_ricerca = {codice_upper}
-            if codice_upper == "A001": codici_ricerca.add("A017")
-            elif codice_upper == "ADSS": codici_ricerca.add("A030")
-            elif codice_upper == "A027": codici_ricerca.add("A031")
-            elif codice_upper == "A054": codici_ricerca.add("A076")
-            if '-' in codice_upper:
-                cod_no_dash = codice_upper.replace('-', '')
-                codici_ricerca.add(cod_no_dash)
-                if re.match(r'^A\d{2}$', cod_no_dash):
-                    codici_ricerca.add('A0' + cod_no_dash[-2:])
-        else:
-            codici_ricerca = CODICI_EQUIVALENTI.get(codice_upper, {codice_upper})
+        if is_sec_ii and '-' in codice_upper:
+            codici_ricerca.add(codice_upper.replace('-', ''))
         
         logger.info(f"[{codice_upper}] Codici ricerca: {codici_ricerca} | Ordine: {ordine_classe}")
 
+        scuole_spec = entry.get("scuole")
         if is_sec_ii:
-            csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper)
-            if csv_scuole is not None:
-                scuole_dict = csv_scuole
-            else:
-                scuole_dict = dizionario_scuole_altro
-        elif codice_upper == "ADMM":
-            scuole_dict = get_scuole_dict(repo, is_musical=False)
-        elif codice_upper in SEC_I_MUSICAL_CLASSI:
+            csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper, csv_filename=scuole_spec)
+            scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
+        elif scuole_spec == "MUSICALI":
             scuole_dict = get_scuole_dict(repo, is_musical=True)
-        elif codice_upper in SEC_I_CLASSI or codice_upper in SEC_I_CSV_FILE_MAP:
-            csv_scuole = get_scuole_dict_from_csv(repo, codice_upper)
-            if csv_scuole is not None:
-                scuole_dict = csv_scuole
-            else:
-                scuole_dict = dizionario_scuole_altro
+        elif scuole_spec == "TOTALI_MM":
+            scuole_dict = get_scuole_dict(repo, is_musical=False)
+        elif scuole_spec:
+            csv_scuole = get_scuole_dict_from_csv(repo, codice_upper, csv_filename=scuole_spec)
+            scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
         else:
             scuole_dict = dizionario_scuole_altro
-
         is_sec_i_codice = (not is_sec_ii and (
                            codice_upper in SEC_I_CLASSI or
                            codice_upper in SEC_I_MUSICAL_CLASSI or
@@ -894,10 +1044,7 @@ def genera_pdf():
             continue
 
         pdf.set_font("Helvetica", 'B', 12)
-        if codice_upper in SEC_I_MUSICAL_NAMES:
-            display_classe = f"Classe di Concorso: {codice} - {SEC_I_MUSICAL_NAMES[codice_upper]}"
-        else:
-            display_classe = f"Classe di Concorso: {codice}"
+        display_classe = f"Classe di Concorso: {entry.get('label', codice)}"
         pdf.cell(0, 10, text=sanitize_for_fpdf(display_classe), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
 
@@ -1254,16 +1401,16 @@ def genera_bollettino():
     elif fascia_richiesta.upper() == 'I_FASCIA': fascia_filter = 'F1'
     else: fascia_filter = ''
 
-    codici_validi = []
+    codici_validi = []          # lista di (ordine, codice)
     ordini_selezionati = set()
     for c in classi_selezionate:
         if '|' in c:
             ord, c_clean = c.split('|', 1)
-            ordini_selezionati.add(ord.strip().lower())
+            ord = ord.strip().lower()
+            ordini_selezionati.add(ord)
         else:
-            c_clean = c
-        codici_validi.append(c_clean.split(' - ')[0].strip().upper())
-
+            ord, c_clean = None, c
+        codici_validi.append((ord, c_clean.split(' - ')[0].strip().upper()))
     prefixes = []
     if "infanzia" in ordini_selezionati: prefixes.append("Bollettini/AA/")
     if "primaria" in ordini_selezionati: prefixes.append("Bollettini/EE/")
@@ -1286,127 +1433,141 @@ def genera_bollettino():
 
     try:
         repo = g.get_repo(REPO_NAME)
-        root_files = get_all_repo_files(repo)
-        
-        # 1. INDIVIDUA FILE BOLLETTINO (per codice)
+        # FIX: get_all_repo_files non esisteva. SOLO le cartelle necessarie, solo metadati.
+        root_files = get_files_from_folders(repo, list(set(prefixes + grad_prefixes)))
+        logger.info(f"[BOLLETTINO] Scaricati {len(root_files)} metadati da {len(set(prefixes + grad_prefixes))} cartelle.")
+
+        def codice_da_nome(nome_file):
+            # "Risultato_Estrazione_<COD>_I_Fascia.csv" oppure "Risultato_Estrazione_<COD>.csv"
+            base = nome_file.rsplit('.', 1)[0]
+            parti = base.split('_')
+            return parti[2].strip().upper() if len(parti) >= 3 else None
+
+        # 1. INDIVIDUA FILE BOLLETTINO (alias dal REGISTRO, per grado, match esatto)
         bollettino_files = []
-        for codice in codici_validi:
-            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
-            possible_codes.add(codice)
-            found = False
+        for ord_cls, codice in codici_validi:
+            _, entry = get_registry_entry(ord_cls, codice)
+            possible = {c.upper() for c in entry["alias"]} | {codice}
+            trovati = []
             for f in root_files:
                 if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv'):
-                    fname = f.name.upper()
-                    if any(f"_{pc}.CSV" in fname for pc in possible_codes):
-                        bollettino_files.append({"codice": codice, "file": f})
-                        logger.info(f"[BOLLETTINO] Trovato file per {codice}: {f.name}")
-                        found = True
-                        break
-            if not found:
-                logger.warning(f"[BOLLETTINO] Nessun file bollettino trovato per {codice}. Verrà saltato.")
-        
+                    cf = codice_da_nome(f.name)
+                    if cf and cf in possible:
+                        trovati.append(f)
+            for f in trovati:
+                bollettino_files.append({"codice": codice, "file": f})
+                logger.info(f"[BOLLETTINO] {codice}: trovato {f.name}")
+            if not trovati:
+                logger.warning(f"[BOLLETTINO] Nessun file bollettino per {codice} (alias: {sorted(possible)}). Classe saltata.")
+
         if not bollettino_files:
             logger.error("[BOLLETTINO] Nessun file bollettino trovato per le classi selezionate.")
             return jsonify({"error": "Nessun file bollettino trovato per le classi selezionate."}), 404
 
-        # 2. INDIVIDUA FILE GRADUATORIE
-        grad_files_set = set()
-        for codice in codici_validi:
-            possible_codes = CODICI_EQUIVALENTI.get(codice, set())
-            possible_codes.add(codice)
+        # 2. INDIVIDUA FILE GRADUATORIE (alias dal REGISTRO, per grado, match esatto)
+        grad_files_per_classe = {}
+        for ord_cls, codice in codici_validi:
+            _, entry = get_registry_entry(ord_cls, codice)
+            possible = {c.upper() for c in entry["alias"]} | {codice}
             for f in root_files:
                 if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
-                    fname = f.name.upper()
-                    if any(pc in fname for pc in possible_codes):
-                        grad_files_set.add(f)
-                        logger.info(f"[BOLLETTINO] Trovato file graduatoria per {codice}: {f.name}")
-        
-        grad_files = list(grad_files_set)
+                    cf = codice_da_nome(f.name)
+                    if cf and cf in possible:
+                        grad_files_per_classe.setdefault(codice, set()).add(f)
+                        logger.info(f"[BOLLETTINO] {codice}: graduatoria {f.name}")
 
-        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE)
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - nessun fallback errato)
         total_candidates = {}
-        logger.info(f"[COUNT DEBUG] File graduatorie da processare: {len(grad_files)}")
-        
-        for file_obj in grad_files:
-            logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} ---")
-            try:
-                file_data = download_github_file_robust(repo, file_obj)
-                if file_data is None:
-                    logger.error(f"[BOLLETTINO] Impossibile scaricare graduatoria {file_obj.path}")
-                    continue
-                    
-                csv_text = file_data.decode('utf-8-sig', errors='ignore')
-                csv_text = clean_csv_text(csv_text)
-                
-                if csv_text.strip().startswith("404") or len(csv_text) < 50:
-                    logger.error(f"[BOLLETTINO] [COUNT DEBUG] Contenuto invalido per {file_obj.name}: '{csv_text[:100]}'")
-                    if "version https://git-lfs" in csv_text:
-                        logger.error(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Il file risulta essere un Git LFS Pointer non scaricato correttamente!")
-                    continue
-                    
-                try:
-                    # OTTIMIZZAZIONE RAM: Carichiamo SOLO le colonne necessarie per il conteggio candidati.
-                    df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True, 
-                                          usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME'])
-                except Exception as e_parse:
-                    logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
-                    continue
-                    
-                df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
-                
-                if 'UFFICIO PROVINCIALE' in df_grad.columns:
-                    df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
-                
-                if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
-                    logger.warning(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: Le colonne 'UFFICIO PROVINCIALE' o 'COGNOME' NON ESISTONO in questo file. Il conteggio candidati sarà 0.")
-                
-                rows_counted_total = 0
-                rows_counted_roma = 0
-                
-                classe_key = None
-                fname_upper = file_obj.name.upper()
-                for codice in codici_validi:
-                    possible = CODICI_EQUIVALENTI.get(codice, set())
-                    possible.add(codice)
-                    if any(pc in fname_upper for pc in possible):
-                        classe_key = codice
-                        break
-                if not classe_key:
-                    classe_key = codici_validi[0]
+        logger.info(f"[COUNT DEBUG] Classi con file graduatorie: {list(grad_files_per_classe.keys())}")
 
-                for _, row in df_grad.iterrows():
-                    val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
-                    if val_prov and val_prov.upper() not in ('NAN', 'NONE'):
-                        sigla = to_sigla(val_prov)
-                        if sigla:
-                            _, nome = PROVINCE_DATA[sigla]
-                            val_cog = str(row.get('COGNOME', '')).strip()
-                            
-                            if nome == "Rovigo" and classe_key == "ADMM":
-                                logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}', Fascia={row.get('FASCIA')}, Pos={row.get('POSIZIONE')}")
-                            
-                            if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
-                                key = (classe_key, nome)
-                                total_candidates[key] = total_candidates.get(key, 0) + 1
-                                rows_counted_total += 1
-                                if nome == "Roma":
-                                    rows_counted_roma += 1
-                                    
-                logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
-                logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
-                
-                # --- PULIZIA MEMORIA ---
-                del df_grad
-                del csv_text
-                gc.collect()
-                # ----------------------
-                
-            except Exception as e:
-                logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
-                continue
-        
+        for classe_key, files_classe in grad_files_per_classe.items():
+            # Dedup tra varianti stesso-contenuto (es. A023 + AM2C): 1 posizione = 1 candidato
+            posizioni_viste = set()
+            for file_obj in sorted(files_classe, key=lambda x: x.name):
+                logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} (classe {classe_key}) ---")
+                try:
+                    file_data = download_github_file_robust(repo, file_obj)
+                    if file_data is None:
+                        logger.error(f"[BOLLETTINO] Impossibile scaricare graduatoria {file_obj.path}")
+                        continue
+
+                    csv_text = file_data.decode('utf-8-sig', errors='ignore')
+                    csv_text = clean_csv_text(csv_text)
+
+                    if csv_text.strip().startswith("404") or len(csv_text) < 50:
+                        logger.error(f"[BOLLETTINO] [COUNT DEBUG] Contenuto invalido per {file_obj.name}: '{csv_text[:100]}'")
+                        if "version https://git-lfs" in csv_text:
+                            logger.error(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: file Git LFS Pointer non scaricato!")
+                        continue
+
+                    try:
+                        # OTTIMIZZAZIONE RAM PRESERVATA: solo 3 colonne (aggiunta POSIZIONE per dedup)
+                        df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True,
+                                              usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME', 'POSIZIONE'])
+                    except Exception as e_parse:
+                        logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
+                        continue
+
+                    df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
+
+                    if 'UFFICIO PROVINCIALE' in df_grad.columns:
+                        df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
+
+                    if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
+                        logger.warning(f"[BOLLETTINO] [COUNT DEBUG] Colonne obbligatorie mancanti in {file_obj.name}. File saltato.")
+                        continue
+
+                    has_posizione = 'POSIZIONE' in df_grad.columns
+                    if not has_posizione:
+                        logger.warning(f"[BOLLETTINO] [COUNT DEBUG] Colonna POSIZIONE assente in {file_obj.name}: dedup non attiva su questo file.")
+
+                    rows_counted_total = 0
+                    rows_counted_roma = 0
+
+                    for _, row in df_grad.iterrows():
+                        val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
+                        if val_prov and val_prov.upper() not in ('NAN', 'NONE'):
+                            sigla = to_sigla(val_prov)
+                            if sigla:
+                                _, nome = PROVINCE_DATA[sigla]
+                                val_cog = str(row.get('COGNOME', '')).strip()
+
+                                if nome == "Rovigo" and classe_key == "ADMM":
+                                    logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}'")
+
+                                if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
+                                    if has_posizione:
+                                        val_pos = str(row.get('POSIZIONE', '')).strip()
+                                        if val_pos and val_pos.upper() not in ('NAN', 'NONE', '', '*'):
+                                            firma = (nome, val_pos)
+                                            if firma in posizioni_viste:
+                                                continue   # stesso candidato già contato nell'altra variante
+                                            posizioni_viste.add(firma)
+                                    key = (classe_key, nome)
+                                    total_candidates[key] = total_candidates.get(key, 0) + 1
+                                    rows_counted_total += 1
+                                    if nome == "Roma":
+                                        rows_counted_roma += 1
+
+                    logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
+                    logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
+
+                    # --- PULIZIA MEMORIA (PRESERVATA) ---
+                    del df_grad
+                    del csv_text
+                    gc.collect()
+                    # ------------------------------------
+
+                except Exception as e:
+                    logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
+                    continue
+
+            del posizioni_viste
+            gc.collect()
+
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
+
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
         results = {}
