@@ -153,6 +153,8 @@ CLASSI_REGISTRY = {
         "AAIN": {"label": "AAIN - Sostegno (Minorati della vista)", "alias": {"AAIN"}},
         "AALN": {"label": "AALN - Sostegno (Minorati psicofisici)", "alias": {"AALN"}},
         "ADAA": {"label": "ADAA - Sostegno (Scuola dell'infanzia)", "alias": {"ADAA"}},
+        "AAPN": {"label": "AAPN - Sostegno (Minorati dell'udito)", "alias": {"AAPN"}}, # AGGIUNTO
+        "AARN": {"label": "AARN - Sostegno (Minorati della vista)", "alias": {"AARN"}}, # AGGIUNTO
     },
     "primaria": {
         "EEEE": {"label": "EEEE - Scuola primaria", "alias": {"EEEE"}},
@@ -161,13 +163,22 @@ CLASSI_REGISTRY = {
         "EEHN": {"label": "EEHN - Sostegno (Minorati dell'udito)", "alias": {"EEHN"}},
         "EEIN": {"label": "EEIN - Sostegno (Minorati della vista)", "alias": {"EEIN"}},
         "EELN": {"label": "EELN - Sostegno (Minorati psicofisici)", "alias": {"EELN"}},
+        "EEIL": {"label": "EEIL - Sostegno", "alias": {"EEIL"}}, # AGGIUNTO
+        "EEPN": {"label": "EEPN - Sostegno", "alias": {"EEPN"}}, # AGGIUNTO
+        "EERN": {"label": "EERN - Sostegno", "alias": {"EERN"}}, # AGGIUNTO
+        "EECN": {"label": "EECN - Sostegno", "alias": {"EECN"}}, # AGGIUNTO
+        "EEDN": {"label": "EEDN - Sostegno", "alias": {"EEDN"}}, # AGGIUNTO
+        "EEEN": {"label": "EEEN - Sostegno", "alias": {"EEEN"}}, # AGGIUNTO
+        "EEQN": {"label": "EEQN - Sostegno", "alias": {"EEQN"}}, # AGGIUNTO
+        "EECH": {"label": "EECH - Sostegno", "alias": {"EECH"}}, # AGGIUNTO
+        "EEZJ": {"label": "EEZJ - Sostegno", "alias": {"EEZJ"}}, # AGGIUNTO
     },
     "secondaria_i": {
         "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
         "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
         "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12", "AM22"}, "scuole": "A-12 (Lettere).csv"},
         "AA25": {"label": "AA25 - Lingua e cultura francese", "alias": {"AA25", "AM2A"}, "scuole": "A-25 (AA25 Francese).csv"},
-                "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B", "A-25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
+        "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B", "A-25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
         "AC25": {"label": "AC25 - Lingua e cultura spagnola", "alias": {"AC25", "AM2C"}, "scuole": "A-25 (AC25 Spagnolo).csv"},
         "AD25": {"label": "AD25 - Lingua e cultura tedesca", "alias": {"AD25", "AM2D"}, "scuole": "A-25 (AD25 Tedesco).csv"},
         "AE25": {"label": "AE25 - Lingua e cultura slovena", "alias": {"AE25", "AM2E"}, "scuole": "A-25 (AE25 Sloveno).csv"},
@@ -185,14 +196,25 @@ CLASSI_REGISTRY = {
         "A084": {"label": "A084 - Francese L2", "alias": {"A084", "A-84"}},
         "A085": {"label": "A085 - Tedesco L2", "alias": {"A085", "A-85"}},
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
+        "AA25": {"label": "AA25 - Lingua francese", "alias": {"AA25", "A25"}, "scuole": "A-25 (AA25 Francese).csv"},
+        "AB25": {"label": "AB25 - Lingua inglese", "alias": {"AB25", "A25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"}, # A25 mappato su Inglese come fallback
+        "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "A28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
+        "AM70": {"label": "AM70 - Potenziamento", "alias": {"AM70", "A70"}}, # Alias A70
+        "AM71": {"label": "AM71 - Potenziamento", "alias": {"AM71", "A77"}}, # Alias A77
+        "A085": {"label": "A085 - Tedesco L2", "alias": {"A085", "A-85", "A85"}},
+        "A-12": {"label": "A-12 - Lettere (Vecchio ordinamento)", "alias": {"A-12", "A012"}},
+        "A-25": {"label": "A-25 - Lingua straniera", "alias": {"A-25", "A025"}},
+        "A-56": {"label": "A-56 - Sostegno", "alias": {"A-56", "A056"}},
+        "A-70": {"label": "A-70 - Potenziamento", "alias": {"A-70", "A070"}},
+        "A-77": {"label": "A-77 - Potenziamento", "alias": {"A-77", "A077"}},
     },
     "secondaria_ii": {
-        "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS"}},
-        "A017": {"label": "A017 - Disegno e storia dell'arte", "alias": {"A017", "A-17"}, "scuole": "A-17 (Disegno e storia dell'arte).csv"},
-        "A027": {"label": "A027 - Matematica e fisica", "alias": {"A027", "A-27"}, "scuole": "A-27 (Matematica e fisica).csv"},
-        "A054": {"label": "A054 - Storia dell'arte", "alias": {"A054", "A-54"}, "scuole": "A-54 (Storia dell'arte).csv"},
+        "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS", "A029"}},
+        "A017": {"label": "A017 - Disegno e storia dell'arte", "alias": {"A017", "A-17", "A17"}, "scuole": "A-17 (Disegno e storia dell'arte).csv"},
+        "A027": {"label": "A027 - Matematica e fisica", "alias": {"A027", "A-27", "A27"}, "scuole": "A-27 (Matematica e fisica).csv"},
+        "A054": {"label": "A054 - Storia dell'arte", "alias": {"A054", "A-54", "A54"}, "scuole": "A-54 (Storia dell'arte).csv"},
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
-    },
+    }
 }
 
 # File "Numero scuole II grado": codice NUOVO (menu) -> codice VECCHIO (nome file)
@@ -1157,24 +1179,19 @@ def genera_pdf():
         for f in files_to_search:
             if hasattr(f, 'type') and f.type != 'file': continue
             if f.name.startswith('~$'): continue
-            for cod_ric in codici_ricerca:
-                if is_sec_ii:
-                    cod_ric_no_dash = cod_ric.replace('-', '')
-                    if re.match(r'^A\d{2}$', cod_ric_no_dash):
-                        cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
-                    prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
-                    prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}.CSV"
-                    match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
-                else:
-                    prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
-                    prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV"
-                    match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
-                
-                if match_found:
-                    if f.name in nomi_file_visti: break
-                    file_da_elaborare.append(f)
-                    nomi_file_visti.add(f.name)
+        for cod_ric in codici_ricerca:
+            # Poiché l'estrattore genera SEMPRE file con zero-padding (es. A018.csv),
+            # basta cercare il codice alias direttamente, senza logiche di conversione.
+            prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
+            prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV"
+            match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
+            
+            if match_found:
+                if f.name in nomi_file_visti:
                     break
+                file_da_elaborare.append(f)
+                nomi_file_visti.add(f.name)
+                break
 
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
