@@ -155,19 +155,19 @@ SEC_I_CSV_FILE_MAP = {
 # ====================================================================
 CLASSI_REGISTRY = {
     "infanzia": {
-        "AAAA": {"label": "AAAA - Classe AAAA", "alias": {"AAAA"}},
-        "AAHN": {"label": "AAHN - Classe AAHN", "alias": {"AAHN"}},
-        "AAIN": {"label": "AAIN - Classe AAIN", "alias": {"AAIN"}},
-        "AALN": {"label": "AALN - Classe AALN", "alias": {"AALN"}},
-        "ADAA": {"label": "ADAA - Classe ADAA", "alias": {"ADAA"}},
+        "AAAA": {"label": "AAAA - Scuola dell'infanzia", "alias": {"AAAA"}},
+        "AAHN": {"label": "AAHN - Italiano L2 (Scuola dell'infanzia)", "alias": {"AAHN"}},
+        "AAIN": {"label": "AAIN - Lingua inglese (Scuola dell'infanzia)", "alias": {"AAIN"}},
+        "AALN": {"label": "AALN - Altra lingua straniera (Scuola dell'infanzia)", "alias": {"AALN"}},
+        "ADAA": {"label": "ADAA - Sostegno (Scuola dell'infanzia)", "alias": {"ADAA"}},
     },
     "primaria": {
-        "EEEE": {"label": "EEEE - Classe EEEE", "alias": {"EEEE"}},
-        "ADEE": {"label": "ADEE - Classe ADEE", "alias": {"ADEE"}},
-        "EEEM": {"label": "EEEM - Classe EEEM", "alias": {"EEEM"}},
-        "EEHN": {"label": "EEHN - Classe EEHN", "alias": {"EEHN"}},
-        "EEIN": {"label": "EEIN - Classe EEIN", "alias": {"EEIN"}},
-        "EELN": {"label": "EELN - Classe EELN", "alias": {"EELN"}},
+        "EEEE": {"label": "EEEE - Scuola primaria", "alias": {"EEEE"}},
+        "ADEE": {"label": "ADEE - Sostegno (Scuola primaria)", "alias": {"ADEE"}},
+        "EEEM": {"label": "EEEM - Educazione motoria (Scuola primaria)", "alias": {"EEEM"}},
+        "EEHN": {"label": "EEHN - Italiano L2 (Scuola primaria)", "alias": {"EEHN"}},
+        "EEIN": {"label": "EEIN - Lingua inglese (Scuola primaria)", "alias": {"EEIN"}},
+        "EELN": {"label": "EELN - Altra lingua straniera (Scuola primaria)", "alias": {"EELN"}},
     },
     "secondaria_i": {
         "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
@@ -178,19 +178,19 @@ CLASSI_REGISTRY = {
         "AC22": {"label": "AC22 - Lingue e culture straniere: Spagnolo (A-22)", "alias": {"A023", "AC22", "AM2C"}, "scuole": "A-22 (AC22 Spagnolo).csv"},
         "AD22": {"label": "AD22 - Lingue e culture straniere: Tedesco (A-22)", "alias": {"A024", "AD22", "AM2D"}, "scuole": "A-22 (AD22 Tedesco).csv"},
         "AE22": {"label": "AE22 - Lingue e culture straniere: Sloveno (A-22)", "alias": {"AE22", "AM2E"}, "scuole": "A-22 (AE22 Sloveno).csv"},
-        "AM2F": {"label": "AM2F - Altra lingua", "alias": {"AM2F"}},
-        "AM2G": {"label": "AM2G - Altra lingua", "alias": {"AM2G"}},
+        "AM2F": {"label": "AM2F - Lingua russa (A-22)", "alias": {"AM2F"}},
+        "AM2G": {"label": "AM2G - Lingua araba (A-22)", "alias": {"AM2G"}},
         "A-23": {"label": "A-23 - Italiano L2 (Lingua italiana per discenti di lingua straniera)", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
         "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A021", "A028", "A-28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
         "A-30": {"label": "A-30 - Musica", "alias": {"A013", "A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
         "A-48": {"label": "A-48 - Scienze Motorie", "alias": {"A015", "A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
         "A-60": {"label": "A-60 - Tecnologia", "alias": {"A014", "A060", "A-60"}, "scuole": "A-60 (Tecnologia).csv"},
-        "AM70": {"label": "AM70 - Classe AM70", "alias": {"AM70"}},
-        "AM71": {"label": "AM71 - Classe AM71", "alias": {"AM71"}},
+        "AM70": {"label": "AM70 - Sviluppo sostenibile, educazione ambientale e beni culturali", "alias": {"AM70"}},
+        "AM71": {"label": "AM71 - Educazione civica e cittadinanza", "alias": {"AM71"}},
         "A077": {"label": "A077 - Musica d'insieme (Sec. I grado)", "alias": {"A077"}},
         "A078": {"label": "A078 - Teoria, lettura ed esecuzione musicale", "alias": {"A078"}},
-        "A084": {"label": "A084 - Classe A084", "alias": {"A084"}},
-        "A085": {"label": "A085 - Classe A085", "alias": {"A085"}},
+        "A084": {"label": "A084 - Lingua e cultura friulana", "alias": {"A084"}},
+        "A085": {"label": "A085 - Lingua e cultura sarda", "alias": {"A085"}},
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC", "A079", "A080", "A081", "A083"}, "scuole": "IRC (Religione Cattolica).csv"},
     },
     "secondaria_ii": {
@@ -259,9 +259,26 @@ _STRUMENTI = [("AA","Arpa"),("AB","Chitarra"),("AC","Clarinetto"),("AD","Contrab
               ("AE","Fagotto"),("AF","Flauto"),("AG","Oboe"),("AH","Pianoforte"),
               ("AI","Sassofono"),("AJ","Tromba"),("AK","Trombone"),("AL","Viola"),
               ("AM","Violino"),("AN","Violoncello")]
+
 for _p, _n in _STRUMENTI:
     CLASSI_REGISTRY["secondaria_i"][f"{_p}56"] = {"label": f"{_p}56 - {_n}", "alias": {f"{_p}56"}, "scuole": "MUSICALI"}
     CLASSI_REGISTRY["secondaria_ii"][f"{_p}55"] = {"label": f"{_p}55 - {_n}", "alias": {f"{_p}55"}, "scuole": "A-55 (Strumento musicale).csv"}
+# Strumenti musicali estesi (solo Sec. II grado): AO-AW
+_STRUMENTI_ESTESI = [
+    ("AO", "Basso tuba"), ("AP", "Canto"), ("AQ", "Clarinetto basso"),
+    ("AR", "Corno"), ("AS", "Flicorno"), ("AT", "Mandolino"),
+    ("AU", "Organo"), ("AV", "Percussioni"), ("AW", "Tastiera elettronica"),
+]
+for _p, _n in _STRUMENTI_ESTESI:
+    CLASSI_REGISTRY["secondaria_ii"][f"{_p}55"] = {
+        "label": f"{_p}55 - {_n}", "alias": {f"{_p}55"}, "scuole": "A-55 (Strumento musicale).csv"
+    }
+
+# Strumenti musicali ITP (B-series): BA02-BN02
+for _p, _n in _STRUMENTI:
+    CLASSI_REGISTRY["secondaria_ii"][f"{_p}02"] = {
+        "label": f"{_p}02 - {_n} (ITP)", "alias": {f"{_p}02"}
+    }
 
 # Codici Sec. II con denominazione nota (file presenti in Estrazione_SS_*)
 _SEC_II_NOMI = {
@@ -288,14 +305,67 @@ _SEC_II_NOMI = {
     "A062":"A062 - Storia della musica e della danza","A063":"A063 - Tecnologie e tecniche delle comunicazioni multimediali",
     "A064":"A064 - Tecnologie e tecniche per la grafica","A065":"A065 - Tecnologie musicali",
     "A066":"A066 - Teoria, analisi e composizione",
+    # — Codici precedentemente generici, ora con denominazione —
+    "A082":"A082 - Lingua e cultura ladina",
+    "A086":"A086 - Lingua e cultura sarda",
+    "AM12":"AM12 - Discipline letterarie (Sec. II)",
+    "AM2A":"AM2A - Lingua francese (Sec. II)",
+    "AM2B":"AM2B - Lingua inglese (Sec. II)",
+    "AM2C":"AM2C - Lingua spagnola (Sec. II)",
+    "AM2D":"AM2D - Lingua tedesca (Sec. II)",
+    "AM48":"AM48 - Scienze motorie e sportive (Sec. II)",
+    "AS12":"AS12 - Discipline letterarie",
+    "AS2A":"AS2A - Lingua e cultura francese",
+    "AS2B":"AS2B - Lingua e cultura inglese",
+    "AS2C":"AS2C - Lingua e cultura spagnola",
+    "AS2D":"AS2D - Lingua e cultura tedesca",
+    "AS2E":"AS2E - Lingua e cultura slovena",
+    "AS2F":"AS2F - Lingua e cultura russa",
+    "AS2H":"AS2H - Lingua e cultura araba",
+    "AS2I":"AS2I - Lingua e cultura cinese",
+    "AS2J":"AS2J - Lingua e cultura giapponese",
+    "AS2K":"AS2K - Lingua e cultura coreana",
+    "AS2L":"AS2L - Lingua e cultura hindi",
+    "AS2M":"AS2M - Lingua e cultura persiana",
+    "AS2N":"AS2N - Lingua e cultura portoghese",
+    "AS30":"AS30 - Musica",
+    "AS48":"AS48 - Scienze motorie e sportive",
+    "AS71":"AS71 - Educazione civica e cittadinanza",
+    # — ITP (B-series) —
+    "B003":"B003 - Enogastronomia e ospitalità alberghiera",
+    "B004":"B004 - Servizi commerciali",
+    "B005":"B005 - Servizi socio-sanitari",
+    "B006":"B006 - Coltivazioni erbacee",
+    "B007":"B007 - Coltivazioni arboree",
+    "B008":"B008 - Zootecnia",
+    "B009":"B009 - Tecnologie agrarie",
+    "B010":"B010 - Trasformazione dei prodotti agricoli",
+    "B011":"B011 - Pesca e acquacoltura",
+    "B012":"B012 - Tecnologie marinare",
+    "B013":"B013 - Costruzioni",
+    "B014":"B014 - Tecnologie chimiche",
+    "B015":"B015 - Conduzione di impianti industriali",
+    "B016":"B016 - Tecnologie meccaniche",
+    "B017":"B017 - Tecnologie elettriche ed elettroniche",
+    "B018":"B018 - Tecnologie informatiche",
+    "B019":"B019 - Tecnologie tessili",
+    "B020":"B020 - Tecnologie dell'abbigliamento",
+    "B021":"B021 - Tecnologie grafiche",
+    "B022":"B022 - Progettazione industriale",
+    "B023":"B023 - Fotografia e audiovisivi",
+    "B024":"B024 - Tecnologie musicali",
+    "B025":"B025 - Arredamento e decorazione",
+    "B026":"B026 - Oreficeria e metalli",
+    "B027":"B027 - Ceramica",
+    "B028":"B028 - Cuoio e calzature",
+    "B029":"B029 - Lavorazione del legno",
+    "B030":"B030 - Lavorazione del vetro",
+    "B031":"B031 - Lavorazione materie plastiche",
+    "B032":"B032 - Tecniche pittoriche",
+    "B033":"B033 - Tecniche plastiche e scultoree",
 }
-# Codici Sec. II senza denominazione nota: voce neutra ma UNIVOCA (file esistenti)
-_SEC_II_GENERICI = (["A082","A086","AM12","AM2A","AM2B","AM2C","AM2D","AM48",
-                     "AS12","AS2A","AS2B","AS2C","AS2D","AS2E","AS2F","AS2H","AS2I","AS2J",
-                     "AS2K","AS2L","AS2M","AS2N","AS30","AS48","AS55","AS71",
-                     "AO55","AP55","AQ55","AR55","AT55","AU55","AV55","AW55"]
-                    + [f"B0{n:02d}" for n in range(3, 34)]
-                    + [f"{p}02" for p in ("BA","BB","BC","BD","BE","BF","BG","BH","BI","BJ","BK","BL","BM","BN")])
+# Tutte le classi hanno ora una denominazione: _SEC_II_GENERICI vuoto
+_SEC_II_GENERICI = []
 for _c, _l in _SEC_II_NOMI.items():
     CLASSI_REGISTRY["secondaria_ii"].setdefault(_c, {"label": _l, "alias": {_c}})
 for _c in _SEC_II_GENERICI:
@@ -305,8 +375,6 @@ for _c, _f in SEC_II_SCUOLE_MAP.items():
     _e = CLASSI_REGISTRY["secondaria_ii"].get(_c)
     if _e is not None and not _e.get("scuole"):
         _e["scuole"] = _f
-for _c in ["AO55","AP55","AQ55","AR55","AS55","AT55","AU55","AV55","AW55"]:
-    CLASSI_REGISTRY["secondaria_ii"][_c]["scuole"] = "A-55 (Strumento musicale).csv"
 
 def get_registry_entry(ordine_classe, codice):
     """Ritorna (codice_canonico, entry) del REGISTRO per il grado richiesto."""
