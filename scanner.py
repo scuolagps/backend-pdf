@@ -7,6 +7,7 @@ import base64
 import gc
 import statistics
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
@@ -40,6 +41,10 @@ def add_security_headers(response):
     return response
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+# Sessione HTTP riutilizzabile (keep-alive: 1 handshake TLS invece di uno per file)
+_HTTP_SESSION = requests.Session()
+if GITHUB_TOKEN:
+    _HTTP_SESSION.headers.update({"Authorization": f"token {GITHUB_TOKEN}"})
 REPO_NAME = os.environ.get("REPO_NAME", "tonecraft17/dati-privati-pdf")
 
 g = Github(GITHUB_TOKEN) if GITHUB_TOKEN else None
@@ -819,6 +824,38 @@ def _cache_put(path, data):
         while _FILE_CACHE_BYTES > _FILE_CACHE_MAX and _FILE_BYTES_CACHE:
             _, old = _FILE_BYTES_CACHE.popitem(last=False)
             _FILE_CACHE_BYTES -= len(old)
+def prefetch_files_parallel(repo, file_objs, max_workers=4):
+    """Scarica in parallelo i file mancanti riempiendo la cache.
+    Non altera contenuti né ordine: chi legge dopo trova cache HIT,
+    in caso di fallimento il download robusto sequenziale resta come fallback."""
+    to_download = [f for f in file_objs if _cache_get(f.path) is None]
+    if not to_download:
+        logger.info("[PREFETCH] Tutti i file già in cache.")
+        return
+
+    def _fetch(f):
+        try:
+            url = getattr(f, 'download_url', None)
+            if url:
+                resp = _HTTP_SESSION.get(url, headers={"Accept": "application/vnd.github.v3.raw"}, timeout=60)
+                if resp.status_code == 200 and len(resp.content) > 50:
+                    _cache_put(f.path, resp.content)
+                    return True
+            raw_url = f"https://raw.githubusercontent.com/{repo.full_name}/{repo.default_branch}/{f.path}"
+            resp = _HTTP_SESSION.get(raw_url, timeout=60)
+            if resp.status_code == 200:
+                _cache_put(f.path, resp.content)
+                return True
+        except Exception as e:
+            logger.warning(f"[PREFETCH] Errore su {f.path}: {e}")
+        return False
+
+    logger.info(f"[PREFETCH] Download parallelo di {len(to_download)} file ({max_workers} worker)...")
+    ok = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for success in ex.map(_fetch, to_download):
+            if success: ok += 1
+    logger.info(f"[PREFETCH] Completato: {ok}/{len(to_download)} file in cache.")
 
 def download_github_file_robust(repo, file_obj):
     cached = _cache_get(file_obj.path)
@@ -847,7 +884,7 @@ def download_github_file_robust(repo, file_obj):
     # Metodo 2: download_url
     try:
         if getattr(file_obj, 'download_url', None):
-            resp = requests.get(file_obj.download_url,
+            resp = _HTTP_SESSION.get(file_obj.download_url,
                                 headers={**headers, "Accept": "application/vnd.github.v3.raw"},
                                 timeout=60)
             if resp.status_code == 200 and len(resp.content) > 50:
@@ -859,7 +896,7 @@ def download_github_file_robust(repo, file_obj):
     # Metodo 3: raw.githubusercontent
     try:
         raw_url = f"https://raw.githubusercontent.com/{repo.full_name}/{repo.default_branch}/{file_obj.path}"
-        resp = requests.get(raw_url, headers=headers, timeout=60)
+        resp =_HTTP_SESSION.get(raw_url, headers=headers, timeout=60)
         if resp.status_code == 200:
             _cache_put(file_obj.path, resp.content)
             return resp.content
@@ -1070,6 +1107,8 @@ def genera_pdf():
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
             continue
+                # I file di questa classe servono subito: prefetch parallelo (cache HIT nel loop sotto)
+        prefetch_files_parallel(repo, file_da_elaborare)
 
         pdf.set_font("Helvetica", 'B', 12)
         display_classe = f"Classe di Concorso: {entry.get('label', codice)}"
@@ -1470,18 +1509,26 @@ def genera_bollettino():
             base = nome_file.rsplit('.', 1)[0]
             parti = base.split('_')
             return parti[2].strip().upper() if len(parti) >= 3 else None
+                # Indicizzazione UNA volta sola: codice -> file (evita riscansioni per ogni classe)
+        def build_file_index(files, prefixes_list):
+            idx = {}
+            for f in files:
+                if any(f.path.startswith(p) for p in prefixes_list) and f.name.lower().endswith('.csv'):
+                    cf = codice_da_nome(f.name)
+                    if cf:
+                        idx.setdefault(cf, []).append(f)
+            return idx
+        bollettino_index = build_file_index(root_files, prefixes)
+        grad_index = build_file_index(root_files, grad_prefixes)
 
         # 1. INDIVIDUA FILE BOLLETTINO (alias dal REGISTRO, per grado, match esatto)
         bollettino_files = []
         for ord_cls, codice in codici_validi:
             _, entry = get_registry_entry(ord_cls, codice)
             possible = {c.upper() for c in entry["alias"]} | {codice}
-            trovati = []
-            for f in root_files:
-                if any(f.path.startswith(p) for p in prefixes) and f.name.lower().endswith('.csv'):
-                    cf = codice_da_nome(f.name)
-                    if cf and cf in possible:
-                        trovati.append(f)
+            trovati = list(dict.fromkeys(
+                f for pc in possible for f in bollettino_index.get(pc, [])
+            ))
             for f in trovati:
                 bollettino_files.append({"codice": codice, "file": f})
                 logger.info(f"[BOLLETTINO] {codice}: trovato {f.name}")
@@ -1497,12 +1544,10 @@ def genera_bollettino():
         for ord_cls, codice in codici_validi:
             _, entry = get_registry_entry(ord_cls, codice)
             possible = {c.upper() for c in entry["alias"]} | {codice}
-            for f in root_files:
-                if any(f.path.startswith(p) for p in grad_prefixes) and f.name.lower().endswith('.csv'):
-                    cf = codice_da_nome(f.name)
-                    if cf and cf in possible:
-                        grad_files_per_classe.setdefault(codice, set()).add(f)
-                        logger.info(f"[BOLLETTINO] {codice}: graduatoria {f.name}")
+            for pc in possible:
+                for f in grad_index.get(pc, []):
+                    grad_files_per_classe.setdefault(codice, set()).add(f)
+                    logger.info(f"[BOLLETTINO] {codice}: graduatoria {f.name}")
 
         # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - nessun fallback errato)
         total_candidates = {}
@@ -1511,6 +1556,7 @@ def genera_bollettino():
         for classe_key, files_classe in grad_files_per_classe.items():
             # Dedup tra varianti stesso-contenuto (es. A023 + AM2C): 1 posizione = 1 candidato
             posizioni_viste = set()
+            prefetch_files_parallel(repo, files_classe)
             for file_obj in sorted(files_classe, key=lambda x: x.name):
                 logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} (classe {classe_key}) ---")
                 try:
@@ -1556,7 +1602,7 @@ def genera_bollettino():
                     uff = df_grad['UFFICIO PROVINCIALE'].astype(str).str.strip()
                     cog = df_grad['COGNOME'].astype(str).str.strip()
                     mask = (~uff.str.upper().isin(['', 'NAN', 'NONE'])) & \
-                           (~cog.str.upper().isin(['', 'NAN', 'NONE', '*']))
+                           (~cog.str.upper().isin(['', 'NAN', 'NONE', '*', 'COGNOME', 'NOMINATI', 'UFFICIO PROVINCIALE', 'CLASSE DI CONCORSO']))
 
                     cols_needed = ['UFFICIO PROVINCIALE'] + (['POSIZIONE'] if has_posizione else [])
                     sub = df_grad.loc[mask, cols_needed].copy()
@@ -1593,22 +1639,21 @@ def genera_bollettino():
                     logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
                     logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
 
-                    # --- PULIZIA MEMORIA (PRESERVATA) ---
+                    # --- PULIZIA MEMORIA: del immediato (refcount), gc rinviato a fine classe ---
                     del df_grad
                     del csv_text
-                    gc.collect()
-                    # ------------------------------------
 
                 except Exception as e:
                     logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                     continue
 
             del posizioni_viste
-            gc.collect()
+            gc.collect()   # UNA raccolta per classe invece che per file (su 0.1 CPU ogni collect costa 100-300ms)
 
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
-
+                # Prefetch parallelo di tutti i bollettini (usati tra poco nella sezione 4)
+        prefetch_files_parallel(repo, [b["file"] for b in bollettino_files])
 
         # 4. ELABORA BOLLETTINO RAGGRUPPANDO PER CLASSE
         results = {}
