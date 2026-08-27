@@ -97,7 +97,8 @@ PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items(
 
 SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
-SEC_I_CLASSI = {"A-01", "A-12", "A-22", "AA22", "AB22", "AC22", "AD22", "AE22", "A-23", "A-28", "A-30", "A-48", "A-60", "AM01", "AM12", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A084", "A085", "IRC", "ADMM"}
+SEC_I_CLASSI = {"A-01", "A-22", "AA25", "AB25", "AC25", "AD25", "AE25", "A-23", "A-28", "A-30", "A-48", "A-60", "AM01", "AM12", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A-82", "A-86", "A084", "A085", "IRC", "ADMM"}
+
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 SEC_I_MUSICAL_NAMES = {
     "AA56": "Arpa", "AB56": "Chitarra", "AC56": "Clarinetto", "AD56": "Contrabbasso",
@@ -181,6 +182,8 @@ CLASSI_REGISTRY = {
         "AM71": {"label": "AM71 - Potenziamento (AM71)", "alias": {"AM71"}},
         "A-82": {"label": "A-82 - Lingua e cultura friulana", "alias": {"A-82"}},
         "A-86": {"label": "A-86 - Lingua e cultura sarda", "alias": {"A-86"}},
+        "A084": {"label": "A084 - Francese L2", "alias": {"A084", "A-84"}},
+        "A085": {"label": "A085 - Tedesco L2", "alias": {"A085", "A-85"}},
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
     },
     "secondaria_ii": {
@@ -251,6 +254,50 @@ SEC_II_SCUOLE_MAP = {
     "A063": "A-63 (Tecnologie musicali).csv",
     "A064": "A-64 (Teoria, analisi e composizione).csv",
 }
+
+SEC_II_CSV_FILE_MAP = {
+    "A-17": "A-17 (Disegno e storia dell'arte).csv", "A-02": "A-02 (Design metalli, oreficeria, pietre).csv",
+    "A-05": "A-05 (Design del tessuto e della moda).csv", "A-07": "A-07 (Discipline audiovisive).csv",
+    "A-08": "A-08 (Discipline geometriche, architettura, scenotecnica).csv", "A-09": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
+    "A-10": "A-10 (Discipline grafico-pubblicitarie).csv", "A-11": "A-11 (Lettere e latino).csv",
+    "A-12": "A-12 (Discipline letterarie).csv", "A-13": "A-13 (Lettere, latino e greco - Liceo Classico).csv",
+    "A-14": "A-14 (Discipline plastiche e scultoree).csv", "A-15": "A-15 (Discipline sanitarie).csv",
+    "A-16": "A-16 (Modellazione odontotecnica).csv", "A-18": "A-18 (Filosofia e scienze umane).csv",
+    "A-19": "A-19 (Filosofia e storia).csv", "A-20": "A-20 (Fisica).csv", "A-21": "A-21 (Geografia).csv",
+    "A-24 (AA)": "A-24 (AA - Francese).csv", "A-24 (AB)": "A-24 (AB - Inglese Altra Lingua).csv",
+    "A-24 (AC)": "A-24 (AC - Spagnolo).csv", "A-24 (AD)": "A-24 (AD - Tedesco).csv",
+    "A-24 (AE)": "A-24 (AE - Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
+    "A-24": "A-24 (Lingue e culture straniere).csv",
+    "A-26": "A-26 (Matematica).csv", "A-27": "A-27 (Matematica e fisica).csv", "A-30": "A-30 (Musica).csv",
+    "A-31": "A-31 (Scienze degli alimenti).csv", "A-32": "A-32 (Scienze della geologia e della mineralogia).csv",
+    "A-33": "A-33 (Scienze e tecnologie aeronautiche).csv", "A-34": "A-34 (Scienze e tecnologie chimiche).csv",
+    "A-35": "A-35 (Tecnologie calzaturiere e della moda).csv", "A-36": "A-36 (Scienze e tecnologie della logistica).csv",
+    "A-37": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
+    "A-38": "A-38 (Costruzioni aeronautiche).csv", "A-39": "A-39 (Costruzioni navali).csv",
+    "A-40": "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv", "A-41": "A-41 (Scienze e tecnologie informatiche).csv",
+    "A-42": "A-42 (Scienze e tecnologie meccaniche).csv", "A-43": "A-43 (Scienze e tecnologie nautiche).csv",
+    "A-44": "A-44 (Tecnologie tessili, abbigliamento e moda).csv", "A-45": "A-45 (Scienze economico-aziendali).csv",
+    "A-46": "A-46 (Scienze giuridico-economiche).csv", "A-47": "A-47 (Scienze matematiche applicate).csv",
+    "A-48": "A-48 (Scienze motorie e sportive).csv", "A-50": "A-50 (Scienze naturali, chimiche e biologiche).csv",
+    "A-51": "A-51 (Tecnologie agrarie).csv", "A-52": "A-52 (Tecnologie delle produzioni animali).csv",
+    "A-53": "A-53 (Storia della musica).csv", "A-54": "A-54 (Storia dell'arte).csv",
+    "A-57": "A-57 (Tecnica della danza classica).csv", "A-58": "A-58 (Tecnica della danza contemporanea).csv",
+    "A-59": "A-59 (Tecniche di accompagnamento alla danza).csv",
+    "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
+    "A-62": "A-62 (Tecnologie e tecniche per la grafica).csv", "A-63": "A-63 (Tecnologie musicali).csv",
+    "A-64": "A-64 (Teoria, analisi e composizione).csv", "IRC": "IRC (Religione Cattolica).csv",
+}
+
+# Popolamento dinamico delle classi di Strumento Musicale (A-55) per evitare ridondanze
+_STRUMENTI_ALL = [("AA","Arpa"),("AB","Chitarra"),("AC","Clarinetto"),("AD","Contrabbasso"),
+                  ("AE","Fagotto"),("AF","Flauto"),("AG","Oboe"),("AH","Pianoforte"),
+                  ("AI","Sassofono"),("AJ","Tromba"),("AK","Trombone"),("AL","Viola"),
+                  ("AM","Violino"),("AN","Violoncello"),
+                  ("AO", "Basso tuba"), ("AP", "Canto"), ("AQ", "Clarinetto basso"),
+                  ("AR", "Corno"), ("AS", "Flicorno"), ("AT", "Mandolino"),
+                  ("AU", "Organo"), ("AV", "Percussioni"), ("AW", "Tastiera elettronica")]
+for _p, _n in _STRUMENTI_ALL:
+    SEC_II_CSV_FILE_MAP[f"{_p}55"] = "A-55 (Strumento musicale).csv"
 # Strumenti musicali: univoci e con nome (xx56 Sec I, xx55 Sec II)
 _STRUMENTI = [("AA","Arpa"),("AB","Chitarra"),("AC","Clarinetto"),("AD","Contrabbasso"),
               ("AE","Fagotto"),("AF","Flauto"),("AG","Oboe"),("AH","Pianoforte"),
@@ -382,49 +429,7 @@ SEC_II_MUSICAL_CLASSI = {
     "AR55", "AS55", "AT55", "AU55", "AV55", "AW55",
 }
 
-SEC_II_CSV_FILE_MAP = {
-    "A-17": "A-17 (Disegno e storia dell'arte).csv", "A-02": "A-02 (Design metalli, oreficeria, pietre).csv",
-    "A-05": "A-05 (Design del tessuto e della moda).csv", "A-07": "A-07 (Discipline audiovisive).csv",
-    "A-08": "A-08 (Discipline geometriche, architettura, scenotecnica).csv", "A-09": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
-    "A-10": "A-10 (Discipline grafico-pubblicitarie).csv", "A-11": "A-11 (Lettere e latino).csv",
-    "A-12": "A-12 (Discipline letterarie).csv", "A-13": "A-13 (Lettere, latino e greco - Liceo Classico).csv",
-    "A-14": "A-14 (Discipline plastiche e scultoree).csv", "A-15": "A-15 (Discipline sanitarie).csv",
-    "A-16": "A-16 (Modellazione odontotecnica).csv", "A-18": "A-18 (Filosofia e scienze umane).csv",
-    "A-19": "A-19 (Filosofia e storia).csv", "A-20": "A-20 (Fisica).csv", "A-21": "A-21 (Geografia).csv",
-    "A-22 (AA)": "A-22 (AA - Francese).csv", "A-22 (AB)": "A-22 (AB - Inglese Altra Lingua).csv",
-    "A-22 (AC)": "A-22 (AC - Spagnolo).csv", "A-22 (AD)": "A-22 (AD - Tedesco).csv",
-    "A-22 (AE)": "A-22 (AE - Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
-    "A-24": "A-24 (Lingue e culture straniere).csv", "A-26": "A-26 (Matematica).csv",
-    "A-27": "A-27 (Matematica e fisica).csv", "A-30": "A-30 (Musica).csv",
-    "A-31": "A-31 (Scienze degli alimenti).csv", "A-32": "A-32 (Scienze della geologia e della mineralogia).csv",
-    "A-33": "A-33 (Scienze e tecnologie aeronautiche).csv", "A-34": "A-34 (Scienze e tecnologie chimiche).csv",
-    "A-35": "A-35 (Tecnologie calzaturiere e della moda).csv", "A-36": "A-36 (Scienze e tecnologie della logistica).csv",
-    "A-37": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
-    "A-38": "A-38 (Costruzioni aeronautiche).csv", "A-39": "A-39 (Costruzioni navali).csv",
-    "A-40": "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv", "A-41": "A-41 (Scienze e tecnologie informatiche).csv",
-    "A-42": "A-42 (Scienze e tecnologie meccaniche).csv", "A-43": "A-43 (Scienze e tecnologie nautiche).csv",
-    "A-44": "A-44 (Tecnologie tessili, abbigliamento e moda).csv", "A-45": "A-45 (Scienze economico-aziendali).csv",
-    "A-46": "A-46 (Scienze giuridico-economiche).csv", "A-47": "A-47 (Scienze matematiche applicate).csv",
-    "A-48": "A-48 (Scienze motorie e sportive).csv", "A-50": "A-50 (Scienze naturali, chimiche e biologiche).csv",
-    "A-51": "A-51 (Tecnologie agrarie).csv", "A-52": "A-52 (Tecnologie delle produzioni animali).csv",
-    "A-53": "A-53 (Storia della musica).csv", "A-54": "A-54 (Storia dell'arte).csv",
-    "A-57": "A-57 (Tecnica della danza classica).csv", "A-58": "A-58 (Tecnica della danza contemporanea).csv",
-    "A-59": "A-59 (Tecniche di accompagnamento alla danza).csv",
-    "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
-    "A-62": "A-62 (Tecnologie e tecniche per la grafica).csv", "A-63": "A-63 (Tecnologie musicali).csv",
-    "A-64": "A-64 (Teoria, analisi e composizione).csv", "IRC": "IRC (Religione Cattolica).csv",
-    "AM55": "A-55 (Strumento musicale).csv", "AN55": "A-55 (Strumento musicale).csv",
-    "AA55": "A-55 (Strumento musicale).csv", "AB55": "A-55 (Strumento musicale).csv",
-    "AC55": "A-55 (Strumento musicale).csv", "AD55": "A-55 (Strumento musicale).csv",
-    "AE55": "A-55 (Strumento musicale).csv", "AF55": "A-55 (Strumento musicale).csv",
-    "AG55": "A-55 (Strumento musicale).csv", "AH55": "A-55 (Strumento musicale).csv",
-    "AI55": "A-55 (Strumento musicale).csv", "AJ55": "A-55 (Strumento musicale).csv",
-    "AK55": "A-55 (Strumento musicale).csv", "AL55": "A-55 (Strumento musicale).csv",
-    "AO55": "A-55 (Strumento musicale).csv", "AP55": "A-55 (Strumento musicale).csv",
-    "AQ55": "A-55 (Strumento musicale).csv", "AR55": "A-55 (Strumento musicale).csv",
-    "AS55": "A-55 (Strumento musicale).csv", "AT55": "A-55 (Strumento musicale).csv",
-    "AU55": "A-55 (Strumento musicale).csv", "AV55": "A-55 (Strumento musicale).csv", "AW55": "A-55 (Strumento musicale).csv",
-}
+
 
 _SCUOLE_CSV_CACHE = {}
 _SCUOLE_SEC_II_CSV_CACHE = {}
