@@ -97,7 +97,7 @@ PROVINCE_SIGLE = { name: sigla for sigla, (region, name) in PROVINCE_DATA.items(
 
 SCUOLE_FALLBACK = {name: 0 for sigla, (region, name) in PROVINCE_DATA.items()}
 
-SEC_I_CLASSI = {"A-01", "A-22", "AA25", "AB25", "AC25", "AD25", "AE25", "A-23", "A-28", "A-30", "A-48", "A-49", "A-60", "AM01", "AM12", "AM22", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A-82", "A-86", "A084", "A085", "IRC", "ADMM"}
+SEC_I_CLASSI = {"A-01", "A-22", "AA25", "AB25", "AC25", "AD25", "AE25", "A-23", "A-28", "A-30", "A-49", "A-60", "AM01", "AM12", "AM22", "AM2A", "AM2B", "AM2C", "AM2D", "AM2E", "AM2F", "AM2G", "AM30", "AM48", "AM70", "AM71", "A-82", "A-86", "A084", "A085", "IRC", "ADMM"}
 
 SEC_I_MUSICAL_CLASSI = {"AA56", "AB56", "AC56", "AD56", "AE56", "AF56", "AG56", "AH56", "AI56", "AJ56", "AK56", "AL56", "AM56", "AN56"}
 SEC_I_MUSICAL_NAMES = {
@@ -128,12 +128,12 @@ SEC_I_CSV_FILE_MAP = {
     "AC25": "A-25 (AC25 Spagnolo).csv", "AD25": "A-25 (AD25 Tedesco).csv",
     "AE25": "A-25 (AE25 Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
     "A-28": "A-28 (Matematica e Scienze).csv", "A-30": "A-30 (Musica).csv",
-    "A-48": "A-48 (Scienze Motorie).csv", "A-60": "A-60 (Tecnologia).csv",
+    "A-49": "A-49 (Scienze Motorie).csv", "A-60": "A-60 (Tecnologia).csv",
     "AM01": "A-01 (Arte e Immagine).csv", "AM12": "A-22 (Lettere).csv",
     "AM2A": "A-25 (AA25 Francese).csv", "AM2B": "A-25 (AB25 Inglese Altra Lingua).csv",
     "AM2C": "A-25 (AC25 Spagnolo).csv", "AM2D": "A-25 (AD25 Tedesco).csv",
     "AM2E": "A-25 (AE25 Sloveno).csv", "AM30": "A-30 (Musica).csv",
-    "AM48": "A-48 (Scienze Motorie).csv", "IRC": "IRC (Religione Cattolica).csv",
+    "AM48": "A-49 (Scienze Motorie).csv", "IRC": "IRC (Religione Cattolica).csv",
 }
 
 # ====================================================================
@@ -167,7 +167,7 @@ CLASSI_REGISTRY = {
         "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
         "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12", "AM22"}, "scuole": "A-12 (Lettere).csv"},
         "AA25": {"label": "AA25 - Lingua e cultura francese", "alias": {"AA25", "AM2A"}, "scuole": "A-25 (AA25 Francese).csv"},
-        "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
+                "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B", "A-25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
         "AC25": {"label": "AC25 - Lingua e cultura spagnola", "alias": {"AC25", "AM2C"}, "scuole": "A-25 (AC25 Spagnolo).csv"},
         "AD25": {"label": "AD25 - Lingua e cultura tedesca", "alias": {"AD25", "AM2D"}, "scuole": "A-25 (AD25 Tedesco).csv"},
         "AE25": {"label": "AE25 - Lingua e cultura slovena", "alias": {"AE25", "AM2E"}, "scuole": "A-25 (AE25 Sloveno).csv"},
@@ -176,7 +176,7 @@ CLASSI_REGISTRY = {
         "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
         "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "AM28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
         "A-30": {"label": "A-30 - Musica", "alias": {"A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
-        "A-49": {"label": "A-49 - Scienze Motorie", "alias": {"A-49", "A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
+        "A-49": {"label": "A-49 - Scienze Motorie", "alias": {"A-49"}, "scuole": "A-49 (Scienze Motorie).csv"},
         "A-60": {"label": "A-60 - Tecnologia", "alias": {"A-60", "AM60"}, "scuole": "A-60 (Tecnologia).csv"},
         "AM70": {"label": "AM70 - Potenziamento (AM70)", "alias": {"AM70"}},
         "AM71": {"label": "AM71 - Potenziamento (AM71)", "alias": {"AM71"}},
@@ -1162,12 +1162,15 @@ def genera_pdf():
                     cod_ric_no_dash = cod_ric.replace('-', '')
                     if re.match(r'^A\d{2}$', cod_ric_no_dash):
                         cod_ric_no_dash = 'A0' + cod_ric_no_dash[-2:]
-                    prefix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
+                    prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}_"
+                    prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric_no_dash}.CSV"
+                    match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
                 else:
                     prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
                     prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV"
+                    match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
                 
-                if (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv'):
+                if match_found:
                     if f.name in nomi_file_visti: break
                     file_da_elaborare.append(f)
                     nomi_file_visti.add(f.name)
