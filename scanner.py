@@ -6,6 +6,8 @@ import requests
 import base64
 import gc
 import statistics
+import threading
+from collections import OrderedDict
 from flask import Flask, request, send_file, jsonify
 from fpdf import FPDF, XPos, YPos
 import pandas as pd
@@ -165,14 +167,14 @@ CLASSI_REGISTRY = {
         "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
         "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A011", "A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
         "A-12": {"label": "A-12 - Lettere (Italiano, Storia, Geografia)", "alias": {"A019", "A020", "A-12", "AM12"}, "scuole": "A-12 (Lettere).csv"},
-        "AA22": {"label": "AA22 - Francese (A-22)", "alias": {"A016", "AA22", "AM2A"}, "scuole": "A-22 (AA22 Francese).csv"},
-        "AB22": {"label": "AB22 - Inglese e Altra Lingua (A-22)", "alias": {"A018", "AB22", "AM2B"}, "scuole": "A-22 (AB22 IngleseAltra Lingua).csv"},
-        "AC22": {"label": "AC22 - Spagnolo (A-22)", "alias": {"A023", "AC22", "AM2C"}, "scuole": "A-22 (AC22 Spagnolo).csv"},
-        "AD22": {"label": "AD22 - Tedesco (A-22)", "alias": {"A024", "AD22", "AM2D"}, "scuole": "A-22 (AD22 Tedesco).csv"},
-        "AE22": {"label": "AE22 - Sloveno (A-22)", "alias": {"AE22", "AM2E"}, "scuole": "A-22 (AE22 Sloveno).csv"},
+        "AA22": {"label": "AA22 - Lingue e culture straniere: Francese (A-22)", "alias": {"A016", "AA22", "AM2A"}, "scuole": "A-22 (AA22 Francese).csv"},
+        "AB22": {"label": "AB22 - Lingue e culture straniere: Inglese e Altra Lingua (A-22)", "alias": {"A018", "AB22", "AM2B"}, "scuole": "A-22 (AB22 IngleseAltra Lingua).csv"},
+        "AC22": {"label": "AC22 - Lingue e culture straniere: Spagnolo (A-22)", "alias": {"A023", "AC22", "AM2C"}, "scuole": "A-22 (AC22 Spagnolo).csv"},
+        "AD22": {"label": "AD22 - Lingue e culture straniere: Tedesco (A-22)", "alias": {"A024", "AD22", "AM2D"}, "scuole": "A-22 (AD22 Tedesco).csv"},
+        "AE22": {"label": "AE22 - Lingue e culture straniere: Sloveno (A-22)", "alias": {"AE22", "AM2E"}, "scuole": "A-22 (AE22 Sloveno).csv"},
         "AM2F": {"label": "AM2F - Altra lingua", "alias": {"AM2F"}},
         "AM2G": {"label": "AM2G - Altra lingua", "alias": {"AM2G"}},
-        "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
+        "A-23": {"label": "A-23 - Italiano L2 (Lingua italiana per discenti di lingua straniera)", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
         "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A021", "A028", "A-28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
         "A-30": {"label": "A-30 - Musica", "alias": {"A013", "A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
         "A-48": {"label": "A-48 - Scienze Motorie", "alias": {"A015", "A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
@@ -794,51 +796,77 @@ def get_files_from_folders(repo, folder_paths):
 # ====================================================================
 # FUNZIONE HELPER: DOWNLOAD ROBUSTO PER GESTIRE GIT LFS (DEBUG VERSION)
 # ====================================================================
+# ============ CACHE GLOBALE DOWNLOAD (condivisa tra le 2 route) ============
+_FILE_BYTES_CACHE = OrderedDict()          # path -> bytes
+_FILE_CACHE_BYTES = 0
+_FILE_CACHE_MAX = 40 * 1024 * 1024         # max 40 MB (Render 512MB: sicuro)
+_FILE_CACHE_LOCK = threading.Lock()
+
+def _cache_get(path):
+    with _FILE_CACHE_LOCK:
+        if path in _FILE_BYTES_CACHE:
+            _FILE_BYTES_CACHE.move_to_end(path)
+            return _FILE_BYTES_CACHE[path]
+    return None
+
+def _cache_put(path, data):
+    global _FILE_CACHE_BYTES
+    with _FILE_CACHE_LOCK:
+        if path in _FILE_BYTES_CACHE:
+            return
+        _FILE_BYTES_CACHE[path] = data
+        _FILE_CACHE_BYTES += len(data)
+        while _FILE_CACHE_BYTES > _FILE_CACHE_MAX and _FILE_BYTES_CACHE:
+            _, old = _FILE_BYTES_CACHE.popitem(last=False)
+            _FILE_CACHE_BYTES -= len(old)
+
 def download_github_file_robust(repo, file_obj):
-    logger.info(f"[DOWNLOAD DEBUG] Inizio download: {file_obj.path} (Size su GitHub: {getattr(file_obj, 'size', 'N/D')} bytes)")
-    
-    # Metodo 1: API raw via PyGithub
-    try:
-        content = repo.get_contents(file_obj.path, ref=repo.default_branch)
-        raw = content.decoded_content
-        if raw and not raw.startswith(b'version https://git-lfs'):
-            if len(raw) > 50 or b'404' not in raw[:20]:
-                logger.info(f"[DOWNLOAD DEBUG] Metodo 1 OK. Scaricati {len(raw)} bytes.")
+    cached = _cache_get(file_obj.path)
+    if cached is not None:
+        logger.info(f"[DOWNLOAD] Cache HIT: {file_obj.path} ({len(cached)} bytes)")
+        return cached
+
+    size = getattr(file_obj, 'size', 0) or 0
+    encoding = getattr(file_obj, 'encoding', 'base64')
+
+    # Metodo 1: SOLO se base64 e piccolo (i file LFS/none falliscono sempre: lo saltiamo)
+    if encoding == 'base64' and size <= 1_500_000:
+        try:
+            content = repo.get_contents(file_obj.path, ref=repo.default_branch)
+            raw = content.decoded_content
+            if raw and not raw.startswith(b'version https://git-lfs') and len(raw) > 50:
+                _cache_put(file_obj.path, raw)
                 return raw
-        logger.warning(f"[DOWNLOAD DEBUG] Metodo 1 fallito o file LFS pointer. Letti {len(raw) if raw else 0} bytes.")
-    except Exception as e:
-        logger.warning(f"[DOWNLOAD DEBUG] Metodo 1 (API raw) fallito per {file_obj.path}: {e}")
+        except Exception as e:
+            logger.warning(f"[DOWNLOAD] Metodo 1 fallito per {file_obj.path}: {e}")
 
-    # Metodo 2: download_url con Authorization header
+    headers = {}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+    # Metodo 2: download_url
     try:
-        headers = {}
-        if GITHUB_TOKEN:
-            headers["Authorization"] = f"token {GITHUB_TOKEN}"
-            headers["Accept"] = "application/vnd.github.v3.raw"
-        if hasattr(file_obj, 'download_url') and file_obj.download_url:
-            resp = requests.get(file_obj.download_url, headers=headers, timeout=60)
-            if resp.status_code == 200 and not resp.text.strip().startswith("404"):
-                logger.info(f"[DOWNLOAD DEBUG] Metodo 2 OK. Scaricati {len(resp.content)} bytes.")
+        if getattr(file_obj, 'download_url', None):
+            resp = requests.get(file_obj.download_url,
+                                headers={**headers, "Accept": "application/vnd.github.v3.raw"},
+                                timeout=60)
+            if resp.status_code == 200 and len(resp.content) > 50:
+                _cache_put(file_obj.path, resp.content)
                 return resp.content
-            logger.warning(f"[DOWNLOAD DEBUG] Metodo 2 fallito. HTTP {resp.status_code}. Scaricati {len(resp.content)} bytes.")
     except Exception as e:
-        logger.warning(f"[DOWNLOAD DEBUG] Metodo 2 (download_url auth) fallito: {e}")
+        logger.warning(f"[DOWNLOAD] Metodo 2 fallito per {file_obj.path}: {e}")
 
-    # Metodo 3: raw.githubusercontent.com con token
+    # Metodo 3: raw.githubusercontent
     try:
         raw_url = f"https://raw.githubusercontent.com/{repo.full_name}/{repo.default_branch}/{file_obj.path}"
-        headers = {}
-        if GITHUB_TOKEN:
-            headers["Authorization"] = f"token {GITHUB_TOKEN}"
         resp = requests.get(raw_url, headers=headers, timeout=60)
         if resp.status_code == 200:
-            logger.info(f"[DOWNLOAD DEBUG] Metodo 3 OK. Scaricati {len(resp.content)} bytes.")
+            _cache_put(file_obj.path, resp.content)
             return resp.content
-        logger.warning(f"[DOWNLOAD DEBUG] Metodo 3 fallito. HTTP {resp.status_code}. Scaricati {len(resp.content)} bytes.")
     except Exception as e:
-        logger.warning(f"[DOWNLOAD DEBUG] Metodo 3 (raw.githubusercontent) fallito: {e}")
+        logger.warning(f"[DOWNLOAD] Metodo 3 fallito per {file_obj.path}: {e}")
 
-    logger.error(f"[DOWNLOAD DEBUG] TUTTI i metodi falliti per {file_obj.path}")
+    logger.error(f"[DOWNLOAD] TUTTI i metodi falliti per {file_obj.path}")
     return None
 
 # ====================================================================
@@ -1524,30 +1552,43 @@ def genera_bollettino():
                     rows_counted_total = 0
                     rows_counted_roma = 0
 
-                    for _, row in df_grad.iterrows():
-                        val_prov = str(row.get('UFFICIO PROVINCIALE', '')).strip()
-                        if val_prov and val_prov.upper() not in ('NAN', 'NONE'):
-                            sigla = to_sigla(val_prov)
-                            if sigla:
-                                _, nome = PROVINCE_DATA[sigla]
-                                val_cog = str(row.get('COGNOME', '')).strip()
+                    # --- CONTEGGIO VETTORIALE (al posto di iterrows) ---
+                    uff = df_grad['UFFICIO PROVINCIALE'].astype(str).str.strip()
+                    cog = df_grad['COGNOME'].astype(str).str.strip()
+                    mask = (~uff.str.upper().isin(['', 'NAN', 'NONE'])) & \
+                           (~cog.str.upper().isin(['', 'NAN', 'NONE', '*']))
 
-                                if nome == "Rovigo" and classe_key == "ADMM":
-                                    logger.info(f"[DEBUG GPS ROVIGO] Prov={val_prov}, Cog='{val_cog}'")
+                    cols_needed = ['UFFICIO PROVINCIALE'] + (['POSIZIONE'] if has_posizione else [])
+                    sub = df_grad.loc[mask, cols_needed].copy()
+                    sub['_sigla'] = sub['UFFICIO PROVINCIALE'].map(to_sigla)
 
-                                if val_cog and val_cog.upper() not in ('NAN', 'NONE', ''):
-                                    if has_posizione:
-                                        val_pos = str(row.get('POSIZIONE', '')).strip()
-                                        if val_pos and val_pos.upper() not in ('NAN', 'NONE', '', '*'):
-                                            firma = (nome, val_pos)
-                                            if firma in posizioni_viste:
-                                                continue   # stesso candidato già contato nell'altra variante
-                                            posizioni_viste.add(firma)
-                                    key = (classe_key, nome)
-                                    total_candidates[key] = total_candidates.get(key, 0) + 1
-                                    rows_counted_total += 1
-                                    if nome == "Roma":
-                                        rows_counted_roma += 1
+                    # DEBUG province non riconosciute (vedi punto 6 - tenere finché caso Roma non risolto)
+                    if sub['_sigla'].isna().any():
+                        strani = sub.loc[sub['_sigla'].isna(), 'UFFICIO PROVINCIALE'].unique()[:10]
+                        logger.warning(f"[COUNT DEBUG] Valori UFFICIO non riconosciuti in {file_obj.name}: {list(strani)}")
+
+                    sub = sub.dropna(subset=['_sigla'])
+                    sub['_nome'] = sub['_sigla'].map(lambda s: PROVINCE_DATA[s][1])
+
+                    if has_posizione:
+                        pos_arr = sub['POSIZIONE'].astype(str).str.strip().to_numpy()
+                        nomi_arr = sub['_nome'].to_numpy()
+                        keep = []
+                        for nome_v, pos_v in zip(nomi_arr, pos_arr):
+                            if pos_v.upper() in ('', 'NAN', 'NONE', '*'):
+                                keep.append(True); continue
+                            firma = (nome_v, pos_v)
+                            if firma in posizioni_viste:
+                                keep.append(False)
+                            else:
+                                posizioni_viste.add(firma); keep.append(True)
+                        sub = sub.loc[keep]
+
+                    vc = sub['_nome'].value_counts()
+                    for nome_v, n_v in vc.items():
+                        total_candidates[(classe_key, nome_v)] = total_candidates.get((classe_key, nome_v), 0) + int(n_v)
+                    rows_counted_total = int(vc.sum())
+                    rows_counted_roma = int(vc.get('Roma', 0))
 
                     logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
                     logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
@@ -1607,6 +1648,9 @@ def genera_bollettino():
             if codice not in results: results[codice] = {}
             
             debug_mismatch_global = 0
+
+            anomalie_count = 0
+
 
             for _, row in df.iterrows():
                 val_prov_raw = str(row.get('UFFICIO PROVINCIALE', '')).strip()
@@ -1670,7 +1714,9 @@ def genera_bollettino():
 
                     parole_chiave_pdf = ["CLASSE DI CONCORSO", "INFANZIA", "PRIMARIA", "NOMINATI", "UFFICIO PROVINCIALE", "MILO"]
                     if any(parola in cog for parola in parole_chiave_pdf) or any(parola in nom for parola in parole_chiave_pdf):
-                        logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata nei dati. Riga ignorata.")
+                        anomalie_count += 1
+                        if anomalie_count <= 3:
+                            logger.warning(f"[ANOMALIA PDF SCARTATA] Intestazione rilevata (altre soppresse).")
                         continue
                         
                     punt_val = row.get('PUNTEGGIO')
