@@ -185,7 +185,6 @@ CLASSI_REGISTRY = {
     },
     "secondaria_ii": {
         "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS"}},
-        "A001": {"label": "A001 - Disegno e storia dell'arte", "alias": {"A001"}, "scuole": "A-01 (Disegno e storia dell'arte).csv"},
         "A027": {"label": "A027 - Matematica e fisica", "alias": {"A027"}, "scuole": "A-27 (Matematica e fisica).csv"},
         "A054": {"label": "A054 - Storia dell'arte", "alias": {"A054"}, "scuole": "A-54 (Storia dell'arte).csv"},
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
@@ -195,6 +194,7 @@ CLASSI_REGISTRY = {
 # File "Numero scuole II grado": codice NUOVO (menu) -> codice VECCHIO (nome file)
 # mappati per DENOMINAZIONE identica (fonte: SEC_II_CSV_FILE_MAP)
 SEC_II_SCUOLE_MAP = {
+    "A001": "A-01 (Disegno e storia dell'arte).csv",
     "A002": "A-02 (Design metalli, oreficeria, pietre).csv",
     "A003": "A-03 (Design della ceramica).csv",
     "A004": "A-04 (Design del libro).csv",
@@ -203,7 +203,7 @@ SEC_II_SCUOLE_MAP = {
     "A007": "A-07 (Discipline audiovisive).csv",
     "A008": "A-08 (Discipline geometriche, architettura, scenotecnica).csv",
     "A009": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
-    "A010": "A-10 (Discipline graficopubblicitarie).csv",
+    "A010": "A-10 (Discipline grafico-pubblicitarie).csv",
     "A011": "A-11 (Lettere e latino).csv",
     "A012": "A-12 (Discipline letterarie).csv",
     "A013": "A-13 (Lettere, latino e greco - Liceo Classico).csv",
@@ -238,13 +238,12 @@ SEC_II_SCUOLE_MAP = {
     "A047": "A-47 (Scienze matematiche applicate).csv",
     "A050": "A-50 (Scienze naturali, chimiche e biologiche).csv",
     "A051": "A-51 (Tecnologie agrarie).csv",
-    "A052": "A-52 (Tecnologie di produzioni animali).csv",
-    "A053": "A-53 (Storia).csv",
+    "A052": "A-52 (Tecnologie delle produzioni animali).csv",
+    "A053": "A-53 (Storia della musica).csv",
     "A054": "A-54 (Storia dell'arte).csv",
     "A057": "A-57 (Tecnica della danza classica).csv",
     "A058": "A-58 (Tecnica della danza contemporanea).csv",
-    "A059": "A-59 (Tecnica della danza della recitazione).csv",
-    "A060": "A-60 (Storia della musica e della danza).csv",
+    "A059": "A-59 (Tecniche di accompagnamento alla danza).csv",
     "A061": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
     "A062": "A-62 (Tecnologie e tecniche per la grafica).csv",
     "A063": "A-63 (Tecnologie musicali).csv",
@@ -272,13 +271,13 @@ for _p, _n in _STRUMENTI_ESTESI:
 # Nota: Rimosso il ciclo per BA02-BN02 (ITP Strumento Musicale inesistente)
 
 # Codici Sec. II con denominazione nota (file presenti in Estrazione_SS_*)
-
 _SEC_II_NOMI = {
+    "A001":"A001 - Disegno e storia dell'arte",
     "A002":"A002 - Design metalli, oreficeria, pietre","A003":"A003 - Design della ceramica",
     "A004":"A004 - Design del libro","A005":"A005 - Design del tessuto e della moda",
     "A006":"A006 - Design del vetro","A007":"A007 - Discipline audiovisive",
     "A008":"A008 - Discipline geometriche, architettura, scenotecnica","A009":"A009 - Discipline grafiche, pittoriche, scenografiche",
-    "A010":"A010 - Discipline graficopubblicitarie","A011":"A011 - Lettere e latino",
+    "A010":"A010 - Discipline grafico-pubblicitarie","A011":"A011 - Lettere e latino",
     "A012":"A012 - Discipline letterarie","A013":"A013 - Lettere, latino e greco - Liceo Classico",
     "A014":"A014 - Discipline plastiche e scultoree","A015":"A015 - Discipline sanitarie",
     "A016":"A016 - Modellazione odontotecnica","A018":"A018 - Filosofia e scienze umane",
@@ -295,9 +294,9 @@ _SEC_II_NOMI = {
     "A045":"A045 - Scienze economico-aziendali","A046":"A046 - Scienze giuridico-economiche",
     "A047":"A047 - Scienze matematiche applicate","A050":"A050 - Scienze naturali, chimiche e biologiche",
     "A051":"A051 - Tecnologie agrarie","A052":"A052 - Tecnologie delle produzioni animali",
-    "A053":"A053 - Storia","A054":"A054 - Storia dell'arte",
+    "A053":"A053 - Storia della musica","A054":"A054 - Storia dell'arte",
     "A057":"A057 - Tecnica della danza classica","A058":"A058 - Tecnica della danza contemporanea",
-    "A059":"A059 - Tecnica della danza della recitazione","A060":"A060 - Storia della musica e della danza",
+    "A059":"A059 - Tecniche di accompagnamento alla danza e teoria, pratica musicale per la danza",
     "A061":"A061 - Tecnologie e tecniche delle comunicazioni multimediali","A062":"A062 - Tecnologie e tecniche per la grafica",
     "A063":"A063 - Tecnologie musicali","A064":"A064 - Teoria, analisi e composizione",
     "A082":"A082 - Lingua e cultura friulana","A086":"A086 - Lingua e cultura sarda",
@@ -311,11 +310,45 @@ _SEC_II_NOMI = {
     "AS30":"AS30 - Musica (Potenziamento)","AS48":"AS48 - Scienze motorie e sportive (Potenziamento)",
     "AS71":"AS71 - Educazione civica e cittadinanza (Potenziamento)",
 }
-# Codici ITP (B-series): denominazione standard
-_SEC_II_GENERICI = ([f"B0{n:02d}" for n in range(3, 34)])
-for _c in _SEC_II_GENERICI:
-    CLASSI_REGISTRY["secondaria_ii"].setdefault(_c, {"label": f"{_c} - Materia tecnica (ITP)", "alias": {_c}})
-_SEC_II_GENERICI = []
+# Codici ITP (Tabella B - D.P.R. 19/2016): denominazione specifica
+_SEC_II_ITP_NOMI = {
+    "B001": "B001 - Attività pratiche speciali",
+    "B002": "B002 - Conversazione in lingua straniera",
+    "B003": "B003 - Laboratori di fisica",
+    "B004": "B004 - Laboratori di chimica",
+    "B005": "B005 - Laboratori di scienze della terra e mineralogiche",
+    "B006": "B006 - Laboratorio di odontotecnica",
+    "B007": "B007 - Laboratori di epidemiologia e igiene",
+    "B008": "B008 - Laboratori di ceramica",
+    "B009": "B009 - Laboratori di disegno geometrico",
+    "B010": "B010 - Laboratori di tecnologie e tecniche di rappresentazione grafica",
+    "B011": "B011 - Laboratori di costruzioni",
+    "B012": "B012 - Laboratori di scienze e tecnologie chimiche e microbiologiche",
+    "B013": "B013 - Laboratori di tecnologia meccanica",
+    "B014": "B014 - Laboratori di tecnologia elettrica ed elettronica",
+    "B015": "B015 - Laboratori di tecnologia informatica",
+    "B016": "B016 - Laboratori di lavorazione del legno",
+    "B017": "B017 - Laboratori di lavorazione dei metalli",
+    "B018": "B018 - Laboratori di lavorazione del vetro",
+    "B019": "B019 - Laboratori di lavorazione delle materie plastiche",
+    "B020": "B020 - Laboratori di enogastronomia e ospitalità alberghiera",
+    "B021": "B021 - Laboratori di servizi commerciali",
+    "B022": "B022 - Laboratori di servizi socio-sanitari",
+    "B023": "B023 - Laboratori di lavorazione delle pelli e del cuoio",
+    "B024": "B024 - Laboratori di tecniche di allevamento",
+    "B025": "B025 - Laboratori di tecniche di coltivazione",
+    "B026": "B026 - Laboratori di lavorazione dei prodotti agricoli",
+    "B027": "B027 - Laboratori di tecnologie della pesca",
+    "B028": "B028 - Laboratori di conduzione del mezzo navale",
+    "B029": "B029 - Laboratori di disegno di modelli e taglio",
+    "B030": "B030 - Laboratori di confezione",
+    "B031": "B031 - Laboratori di elaborazione digitale delle immagini e dei suoni",
+    "B032": "B032 - Laboratori di tecniche audiovisive",
+    "B033": "B033 - Laboratori di tecnologie musicali",
+}
+for _c, _l in _SEC_II_ITP_NOMI.items():
+    CLASSI_REGISTRY["secondaria_ii"].setdefault(_c, {"label": _l, "alias": {_c}})
+
 # Collega i file scuole anche alle voci generate sopra
 for _c, _f in SEC_II_SCUOLE_MAP.items():
     _e = CLASSI_REGISTRY["secondaria_ii"].get(_c)
@@ -346,11 +379,11 @@ SEC_II_CSV_FILE_MAP = {
     "A-01": "A-01 (Disegno e storia dell'arte).csv", "A-02": "A-02 (Design metalli, oreficeria, pietre).csv",
     "A-05": "A-05 (Design del tessuto e della moda).csv", "A-07": "A-07 (Discipline audiovisive).csv",
     "A-08": "A-08 (Discipline geometriche, architettura, scenotecnica).csv", "A-09": "A-09 (Discipline grafiche, pittoriche, scenografiche).csv",
-    "A-11": "A-11 (Lettere e latino).csv", "A-12": "A-12 (Discipline letterarie).csv",
-    "A-13": "A-13 (Lettere, latino e greco - Liceo Classico).csv", "A-14": "A-14 (Discipline plastiche e scultoree).csv",
-    "A-15": "A-15 (Discipline sanitarie).csv", "A-16": "A-16 (Modellazione odontotecnica).csv",
-    "A-18": "A-18 (Filosofia e scienze umane).csv", "A-19": "A-19 (Filosofia e storia).csv",
-    "A-20": "A-20 (Fisica).csv", "A-21": "A-21 (Geografia).csv",
+    "A-10": "A-10 (Discipline grafico-pubblicitarie).csv", "A-11": "A-11 (Lettere e latino).csv",
+    "A-12": "A-12 (Discipline letterarie).csv", "A-13": "A-13 (Lettere, latino e greco - Liceo Classico).csv",
+    "A-14": "A-14 (Discipline plastiche e scultoree).csv", "A-15": "A-15 (Discipline sanitarie).csv",
+    "A-16": "A-16 (Modellazione odontotecnica).csv", "A-18": "A-18 (Filosofia e scienze umane).csv",
+    "A-19": "A-19 (Filosofia e storia).csv", "A-20": "A-20 (Fisica).csv", "A-21": "A-21 (Geografia).csv",
     "A-22 (AA)": "A-22 (AA - Francese).csv", "A-22 (AB)": "A-22 (AB - IngleseAltra Lingua).csv",
     "A-22 (AC)": "A-22 (AC - Spagnolo).csv", "A-22 (AD)": "A-22 (AD - Tedesco).csv",
     "A-22 (AE)": "A-22 (AE - Sloveno).csv", "A-23": "A-23 (Italiano L2).csv",
@@ -358,17 +391,19 @@ SEC_II_CSV_FILE_MAP = {
     "A-27": "A-27 (Matematica e fisica).csv", "A-30": "A-30 (Musica).csv",
     "A-31": "A-31 (Scienze degli alimenti).csv", "A-32": "A-32 (Scienze della geologia e della mineralogia).csv",
     "A-33": "A-33 (Scienze e tecnologie aeronautiche).csv", "A-34": "A-34 (Scienze e tecnologie chimiche).csv",
-    "A-36": "A-36 (Scienze e tecnologie della logistica).csv", "A-37": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
+    "A-35": "A-35 (Tecnologie calzaturiere e della moda).csv", "A-36": "A-36 (Scienze e tecnologie della logistica).csv",
+    "A-37": "A-37 (Tecnologie delle costruzioni e rappresentazione grafica).csv",
     "A-38": "A-38 (Costruzioni aeronautiche).csv", "A-39": "A-39 (Costruzioni navali).csv",
     "A-40": "A-40 (Scienze e tecnologie elettriche ed elettroniche).csv", "A-41": "A-41 (Scienze e tecnologie informatiche).csv",
     "A-42": "A-42 (Scienze e tecnologie meccaniche).csv", "A-43": "A-43 (Scienze e tecnologie nautiche).csv",
     "A-44": "A-44 (Tecnologie tessili, abbigliamento e moda).csv", "A-45": "A-45 (Scienze economico-aziendali).csv",
-    "A-46": "A-46 (Scienze giuridico-economiche).csv", "A-47": "A-47 (Diritto ed economia politica).csv",
+    "A-46": "A-46 (Scienze giuridico-economiche).csv", "A-47": "A-47 (Scienze matematiche applicate).csv",
     "A-48": "A-48 (Scienze motorie e sportive).csv", "A-50": "A-50 (Scienze naturali, chimiche e biologiche).csv",
     "A-51": "A-51 (Tecnologie agrarie).csv", "A-52": "A-52 (Tecnologie di produzioni animali).csv",
-    "A-53": "A-53 (Storia).csv", "A-54": "A-54 (Storia dell'arte).csv",
+    "A-53": "A-53 (Storia della musica).csv", "A-54": "A-54 (Storia dell'arte).csv",
     "A-57": "A-57 (Tecnica della danza classica).csv", "A-58": "A-58 (Tecnica della danza contemporanea).csv",
-    "A-60": "A-60 (Storia della musica e della danza).csv", "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
+    "A-59": "A-59 (Tecniche di accompagnamento alla danza).csv",
+    "A-61": "A-61 (Tecnologie e tecniche delle comunicazioni multimediali).csv",
     "A-62": "A-62 (Tecnologie e tecniche per la grafica).csv", "A-63": "A-63 (Tecnologie musicali).csv",
     "A-64": "A-64 (Teoria, analisi e composizione).csv", "IRC": "IRC (Religione Cattolica).csv",
     "AM55": "A-55 (Strumento musicale).csv", "AN55": "A-55 (Strumento musicale).csv",
