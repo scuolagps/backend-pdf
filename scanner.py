@@ -165,7 +165,7 @@ CLASSI_REGISTRY = {
     "secondaria_i": {
         "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
         "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
-        "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12"}, "scuole": "A-22 (Lettere).csv"},
+        "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12", "AM22"}, "scuole": "A-12 (Lettere).csv"},
         "AA25": {"label": "AA25 - Lingua e cultura francese", "alias": {"AA25", "AM2A"}, "scuole": "A-25 (AA25 Francese).csv"},
         "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
         "AC25": {"label": "AC25 - Lingua e cultura spagnola", "alias": {"AC25", "AM2C"}, "scuole": "A-25 (AC25 Spagnolo).csv"},
@@ -176,7 +176,7 @@ CLASSI_REGISTRY = {
         "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
         "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "AM28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
         "A-30": {"label": "A-30 - Musica", "alias": {"A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
-        "A-48": {"label": "A-48 - Scienze Motorie", "alias": {"A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
+        "A-49": {"label": "A-49 - Scienze Motorie", "alias": {"A-49", "A-48", "AM48"}, "scuole": "A-48 (Scienze Motorie).csv"},
         "A-60": {"label": "A-60 - Tecnologia", "alias": {"A-60", "AM60"}, "scuole": "A-60 (Tecnologia).csv"},
         "AM70": {"label": "AM70 - Potenziamento (AM70)", "alias": {"AM70"}},
         "AM71": {"label": "AM71 - Potenziamento (AM71)", "alias": {"AM71"}},
@@ -410,14 +410,20 @@ for _c, _f in SEC_II_SCUOLE_MAP.items():
         _e["scuole"] = _f
 
 def get_registry_entry(ordine_classe, codice):
-    """Ritorna (codice_canonico, entry) del REGISTRO per il grado richiesto."""
+    # Normalizza rimuovendo spazi e trattini per un confronto più robusto
     cod = str(codice).strip().upper()
+    cod_norm = cod.replace("-", "") 
     registry = CLASSI_REGISTRY.get((ordine_classe or "").lower(), {})
+    
     if cod in registry:
         return cod, registry[cod]
-    for key, e in registry.items():          # retrocompatibilità: cerca per alias
-        if cod in e["alias"]:
+    
+    for key, e in registry.items():
+        # Controlla sia il codice esatto sia la versione senza trattino
+        aliases_norm = {a.replace("-", "") for a in e["alias"]}
+        if cod in e["alias"] or cod_norm in aliases_norm:
             return key, e
+            
     return cod, {"label": cod, "alias": {cod}, "extra_estrazione": set(), "scuole": None}
 
 SEC_II_FOLDER = "Numero scuole II grado"
