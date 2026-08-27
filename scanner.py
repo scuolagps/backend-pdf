@@ -1176,22 +1176,25 @@ def genera_pdf():
 
         file_da_elaborare = []
         nomi_file_visti = set()
-        for f in files_to_search:
-            if hasattr(f, 'type') and f.type != 'file': continue
-            if f.name.startswith('~$'): continue
         for cod_ric in codici_ricerca:
-            # Poiché l'estrattore genera SEMPRE file con zero-padding (es. A018.csv),
-            # basta cercare il codice alias direttamente, senza logiche di conversione.
-            prefix_with_suffix = f"RISULTATO_ESTRAZIONE_{cod_ric}_"
-            prefix_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV"
-            match_found = (f.name.upper().startswith(prefix_with_suffix) or f.name.upper() == prefix_exact) and f.name.lower().endswith('.csv')
+            # Rendiamo il confronto case-insensitive e ignoriamo gli spazi nel nome file
+            target_prefix = f"RISULTATO_ESTRAZIONE_{cod_ric}_".upper().replace(" ", "")
+            target_exact = f"RISULTATO_ESTRAZIONE_{cod_ric}.CSV".upper().replace(" ", "")
             
-            if match_found:
-                if f.name in nomi_file_visti:
-                    break
-                file_da_elaborare.append(f)
-                nomi_file_visti.add(f.name)
-                break
+            for f in files_to_search:
+                if hasattr(f, 'type') and f.type != 'file': continue
+                if f.name.startswith('~$'): continue
+                
+                # Puliamo il nome del file da spazi per un match robusto
+                fname_clean = f.name.upper().replace(" ", "")
+                
+                match_found = (fname_clean.startswith(target_prefix) or fname_clean == target_exact) and fname_clean.endswith('.CSV')
+                
+                if match_found:
+                    if f.name not in nomi_file_visti:
+                        file_da_elaborare.append(f)
+                        nomi_file_visti.add(f.name)
+                    break # Trovato il file per questo codice, passa al prossimo codice
 
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
