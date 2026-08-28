@@ -485,6 +485,14 @@ def to_sigla(val):
         return v
     if v in NOME_TO_SIGLA:
         return NOME_TO_SIGLA[v]
+    
+    # NEW: Match per prefisso (es. 'BARLETTA' -> 'Barletta-Andria-Trani' -> BT)
+    if len(v) >= 4:
+        for nome, sigla in NOME_TO_SIGLA.items():
+            if nome.startswith(v):
+                return sigla
+    
+    # Logica esistente: cerca nome completo come sottostringa di v
     best_match = None
     best_len = 0
     for nome, sigla in NOME_TO_SIGLA.items():
@@ -1693,8 +1701,8 @@ def genera_bollettino():
                     rows_counted_roma = 0
 
                     # --- CONTEGGIO VETTORIALE (al posto di iterrows) ---
-                    uff = df_grad['UFFICIO PROVINCIALE'].astype(str).str.strip()
-                    cog = df_grad['COGNOME'].astype(str).str.strip()
+                    uff = df_grad['UFFICIO PROVINCIALE'].fillna('').astype(str).str.strip()
+                    cog = df_grad['COGNOME'].fillna('').astype(str).str.strip()
                     mask = (~uff.str.upper().isin(['', 'NAN', 'NONE'])) & \
                            (~cog.str.upper().isin(['', 'NAN', 'NONE', '*', 'COGNOME', 'NOMINATI', 'UFFICIO PROVINCIALE', 'CLASSE DI CONCORSO']))
 
@@ -1711,13 +1719,16 @@ def genera_bollettino():
                     sub['_nome'] = sub['_sigla'].map(lambda s: PROVINCE_DATA[s][1])
 
                     if has_posizione:
-                        pos_arr = sub['POSIZIONE'].astype(str).str.strip().to_numpy()
+                        # FIX: fillna('') prima di astype(str) per evitare che NaN rimanga float
+                        pos_arr = sub['POSIZIONE'].fillna('').astype(str).str.strip().to_numpy()
                         nomi_arr = sub['_nome'].to_numpy()
                         keep = []
                         for nome_v, pos_v in zip(nomi_arr, pos_arr):
-                            if pos_v.upper() in ('', 'NAN', 'NONE', '*'):
+                            # FIX: str(pos_v) per gestire eventuali float residui
+                            pos_str = str(pos_v).strip().upper()
+                            if pos_str in ('', 'NAN', 'NONE', '*', 'NAN.0'):
                                 keep.append(True); continue
-                            firma = (nome_v, pos_v)
+                            firma = (nome_v, pos_str)
                             if firma in posizioni_viste:
                                 keep.append(False)
                             else:
