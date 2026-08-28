@@ -175,38 +175,32 @@ CLASSI_REGISTRY = {
     },
     "secondaria_i": {
         "ADMM": {"label": "ADMM - Sostegno Sec. I grado", "alias": {"ADMM"}, "scuole": "TOTALI_MM"},
-        "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A-01", "AM01"}, "scuole": "A-01 (Arte e Immagine).csv"},
-        "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12", "AM22"}, "scuole": "A-12 (Lettere).csv"},
-        "AA25": {"label": "AA25 - Lingua e cultura francese", "alias": {"AA25", "AM2A"}, "scuole": "A-25 (AA25 Francese).csv"},
-        "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B", "A-25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
-        "AC25": {"label": "AC25 - Lingua e cultura spagnola", "alias": {"AC25", "AM2C"}, "scuole": "A-25 (AC25 Spagnolo).csv"},
-        "AD25": {"label": "AD25 - Lingua e cultura tedesca", "alias": {"AD25", "AM2D"}, "scuole": "A-25 (AD25 Tedesco).csv"},
-        "AE25": {"label": "AE25 - Lingua e cultura slovena", "alias": {"AE25", "AM2E"}, "scuole": "A-25 (AE25 Sloveno).csv"},
+        "A-01": {"label": "A-01 - Arte e immagine", "alias": {"A-01", "AM01", "A001"}, "scuole": "A-01 (Arte e Immagine).csv"},
+        "A-22": {"label": "A-22 - Lettere (Italiano, Storia, Geografia)", "alias": {"A-22", "AM12", "AM22", "A022"}, "scuole": "A-12 (Lettere).csv"},
+        "AA25": {"label": "AA25 - Lingua e cultura francese", "alias": {"AA25", "AM2A", "A025", "A25"}, "scuole": "A-25 (AA25 Francese).csv"},
+        "AB25": {"label": "AB25 - Lingua e cultura inglese", "alias": {"AB25", "AM2B", "A-25", "A025", "A25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"},
+        "AC25": {"label": "AC25 - Lingua e cultura spagnola", "alias": {"AC25", "AM2C", "A025"}, "scuole": "A-25 (AC25 Spagnolo).csv"},
+        "AD25": {"label": "AD25 - Lingua e cultura tedesca", "alias": {"AD25", "AM2D", "A025"}, "scuole": "A-25 (AD25 Tedesco).csv"},
+        "AE25": {"label": "AE25 - Lingua e cultura slovena", "alias": {"AE25", "AM2E", "A025"}, "scuole": "A-25 (AE25 Sloveno).csv"},
         "AM2F": {"label": "AM2F - Lingua straniera (Potenziamento)", "alias": {"AM2F"}},
         "AM2G": {"label": "AM2G - Lingua straniera (Potenziamento)", "alias": {"AM2G"}},
-        "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23"}, "scuole": "A-23 (Italiano L2).csv"},
-        "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "AM28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
-        "A-30": {"label": "A-30 - Musica", "alias": {"A-30", "AM30"}, "scuole": "A-30 (Musica).csv"},
-        "A-49": {"label": "A-49 - Scienze Motorie", "alias": {"A-49"}, "scuole": "A-49 (Scienze Motorie).csv"},
-        "A-60": {"label": "A-60 - Tecnologia", "alias": {"A-60", "AM60"}, "scuole": "A-60 (Tecnologia).csv"},
-        "AM70": {"label": "AM70 - Potenziamento (AM70)", "alias": {"AM70"}},
-        "AM71": {"label": "AM71 - Potenziamento (AM71)", "alias": {"AM71"}},
-        "A-82": {"label": "A-82 - Lingua e cultura friulana", "alias": {"A-82"}},
-        "A-86": {"label": "A-86 - Lingua e cultura sarda", "alias": {"A-86"}},
-        "A084": {"label": "A084 - Francese L2", "alias": {"A084", "A-84"}},
-        "A085": {"label": "A085 - Tedesco L2", "alias": {"A085", "A-85"}},
-        "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
-        "AA25": {"label": "AA25 - Lingua francese", "alias": {"AA25", "A25"}, "scuole": "A-25 (AA25 Francese).csv"},
-        "AB25": {"label": "AB25 - Lingua inglese", "alias": {"AB25", "A25"}, "scuole": "A-25 (AB25 Inglese Altra Lingua).csv"}, # A25 mappato su Inglese come fallback
-        "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "A28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
-        "AM70": {"label": "AM70 - Potenziamento", "alias": {"AM70", "A70"}}, # Alias A70
-        "AM71": {"label": "AM71 - Potenziamento", "alias": {"AM71", "A77"}}, # Alias A77
+        "A-23": {"label": "A-23 - Italiano L2", "alias": {"A-23", "A023"}, "scuole": "A-23 (Italiano L2).csv"},
+        "A-28": {"label": "A-28 - Matematica e Scienze", "alias": {"A-28", "AM28", "A028", "A28"}, "scuole": "A-28 (Matematica e Scienze).csv"},
+        "A-30": {"label": "A-30 - Musica", "alias": {"A-30", "AM30", "A030"}, "scuole": "A-30 (Musica).csv"},
+        "A-49": {"label": "A-49 - Scienze Motorie", "alias": {"A-49", "A049"}, "scuole": "A-49 (Scienze Motorie).csv"},
+        "A-60": {"label": "A-60 - Tecnologia", "alias": {"A-60", "AM60", "A060"}, "scuole": "A-60 (Tecnologia).csv"},
+        "AM70": {"label": "AM70 - Potenziamento (AM70)", "alias": {"AM70", "A070", "A70"}},
+        "AM71": {"label": "AM71 - Potenziamento (AM71)", "alias": {"AM71", "A077", "A77"}},
+        "A-82": {"label": "A-82 - Lingua e cultura friulana", "alias": {"A-82", "A082"}},
+        "A-86": {"label": "A-86 - Lingua e cultura sarda", "alias": {"A-86", "A086"}},
+        "A084": {"label": "A084 - Francese L2", "alias": {"A084", "A-84", "A84"}},
         "A085": {"label": "A085 - Tedesco L2", "alias": {"A085", "A-85", "A85"}},
         "A-12": {"label": "A-12 - Lettere (Vecchio ordinamento)", "alias": {"A-12", "A012"}},
-        "A-25": {"label": "A-25 - Lingua straniera", "alias": {"A-25", "A025"}},
+        "A-25": {"label": "A-25 - Lingua straniera (Vecchio ordinamento)", "alias": {"A-25", "A025"}},
         "A-56": {"label": "A-56 - Sostegno", "alias": {"A-56", "A056"}},
         "A-70": {"label": "A-70 - Potenziamento", "alias": {"A-70", "A070"}},
         "A-77": {"label": "A-77 - Potenziamento", "alias": {"A-77", "A077"}},
+        "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
     },
     "secondaria_ii": {
         "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS", "A029"}},
@@ -1269,11 +1263,17 @@ def genera_pdf():
                 if col_classe and not df.empty:
                     def contiene_classe_esatta(valore, codici_target):
                         if pd.isna(valore): return False
-                        testo = str(valore).upper().strip().replace('-', ' ').replace('_', ' ')
-                        testo = re.sub(r'\s+', ' ', testo)
-                        codici_trovati = re.findall(r'(?<![A-Z0-9])(?:A\d{3}|A[A-Z]\d{2}|A[A-Z]\d[A-Z]|A[A-Z]{3}|IRC)(?![A-Z0-9])', testo)
-                        codici_trovati = {c.upper() for c in codici_trovati}
-                        return any(c in codici_trovati for c in codici_target)
+                        testo = str(valore).upper().strip()
+                        # Normalizziamo testo e target rimuovendo spazi e trattini per un confronto sicuro
+                        testo_norm = re.sub(r'[\s_-]+', '', testo)
+                        
+                        for codice in codici_target:
+                            codice_norm = re.sub(r'[\s_-]+', '', str(codice).upper())
+                            if not codice_norm: continue
+                            # Verifica se il codice normalizzato è presente come parola intera nel testo
+                            if re.search(r'(?<![A-Z0-9])' + re.escape(codice_norm) + r'(?![A-Z0-9])', testo_norm):
+                                return True
+                        return False
                     prima = len(df)
                     df = df[df[col_classe].apply(lambda x: contiene_classe_esatta(x, codici_ricerca))].copy()
                     dopo = len(df)
@@ -1667,9 +1667,11 @@ def genera_bollettino():
                         continue
 
                     try:
-                        # OTTIMIZZAZIONE RAM PRESERVATA: solo 3 colonne (aggiunta POSIZIONE per dedup)
                         df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True,
-                                              usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME', 'POSIZIONE'])
+                                              usecols=lambda c: c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME', 'POSIZIONE', 'POSIZIONE GRADUATORIA'])
+                        # Rinomina la colonna se ha il nome lungo, per uniformarla
+                        if 'POSIZIONE GRADUATORIA' in df_grad.columns:
+                            df_grad.rename(columns={'POSIZIONE GRADUATORIA': 'POSIZIONE'}, inplace=True)
                     except Exception as e_parse:
                         logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
                         continue
