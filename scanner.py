@@ -1441,40 +1441,79 @@ def genera_pdf():
                         except ValueError: pass
                     return s
 
+                # --- LARGHEZZE FISSE E SCALA DINAMICA ---
                 col_widths = {}
-                total_width = 0
+                fixed_widths = {}
+                var_widths = {}
+                
                 for col in df.columns:
-                    words = str(col).split()
-                    longest_word = max(len(w) for w in words) if words else 1
-                    min_width_header = max(longest_word * 2.2, 15)
-                    max_len_content = len(str(col))
-                    for val in df[col].head(100):
-                        val_str = format_val(val)
-                        if len(val_str) > max_len_content: max_len_content = len(val_str)
-                    width = min(max_len_content * 2.2, 50)
-                    width = max(width, min_width_header)
-                    if str(col).upper() in ['UFFICIO PROVINCIALE', 'UFFICIO', 'PROVINCIA']: width = max(width, 25)
-                    if str(col).upper() in ['COGNOME', 'NOME']: width = max(width, 35)
-                    if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper(): width = max(width, 25)
-                    if 'POSIZIONE' in str(col).upper(): width = max(width, 20)
-                    if str(col).upper() == 'FASCIA': width = max(width, 18)
-                    col_widths[col] = width
-                    total_width += width
+                    col_upper = str(col).upper()
+                    w = 0
+                    if 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper:
+                        w = 25
+                    elif 'CODICE' in col_upper:
+                        w = 22
+                    elif col_upper == 'FASCIA':
+                        w = 15
+                    elif 'POSIZIONE' in col_upper:
+                        w = 18
+                    elif 'COGNOME' in col_upper or 'NOME' in col_upper:
+                        w = 35
+                    
+                    if w > 0:
+                        fixed_widths[col] = w
+                    else:
+                        max_len = len(str(col))
+                        for val in df[col].head(50):
+                            val_str = format_val(val)
+                            if len(val_str) > max_len: max_len = len(val_str)
+                        var_w = min(max_len * 2.2, 40)
+                        var_w = max(var_w, 15)
+                        if 'PUNTEGGIO' in col_upper or 'TOTALE' in col_upper:
+                            var_w = max(var_w, 22)
+                        var_widths[col] = var_w
+
                 page_width = 277
-                if total_width > 0:
-                    scale = page_width / total_width
-                    for col in col_widths: col_widths[col] *= scale
-                    total_width_scaled = sum(col_widths.values())
+                fixed_total = sum(fixed_widths.values())
+                available_for_var = page_width - fixed_total
+                
+                if var_widths:
+                    var_total = sum(var_widths.values())
+                    scale = min(1.0, available_for_var / var_total) if var_total > 0 else 1.0
+                    for col, w in var_widths.items():
+                        col_widths[col] = w * scale
                 else:
-                    total_width_scaled = 0
+                    scale = 1.0
+                
+                for col, w in fixed_widths.items():
+                    col_widths[col] = w
+                    
+                total_width_scaled = sum(col_widths.values())
                 pdf.set_font("Helvetica", 'B', 9)
                 line_height = 5
                 max_lines = 2
                 max_header_height = max_lines * line_height
                 header_texts = {}
                 for col in df.columns:
+                    col_upper = str(col).upper()
+                    # Abbreviamo le intestazioni fisse per farle stare bene nelle colonne strette
+                    if col_upper == 'FASCIA':
+                        display_col = 'FASCIA'
+                    elif 'POSIZIONE' in col_upper:
+                        display_col = 'POS.'
+                    elif 'UFFICIO' in col_upper:
+                        display_col = 'UFFICIO'
+                    elif 'CODICE' in col_upper:
+                        display_col = 'CODICE'
+                    elif 'PUNTEGGIO TOTALE' in col_upper:
+                        display_col = 'P. TOTALE'
+                    elif 'PUNTEGGIO' in col_upper:
+                        display_col = col_upper.replace('PUNTEGGIO ', 'P. ')
+                    else:
+                        display_col = str(col)
+                        
                     char_limit = max(1, int(col_widths[col] / 2.0))
-                    words = str(col).split()
+                    words = display_col.split()
                     lines = []
                     current_line = ""
                     for word in words:
