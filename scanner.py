@@ -1261,7 +1261,12 @@ def genera_pdf():
                     continue
 
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
-                df.rename(columns={'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA', 'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA'}, inplace=True, errors='ignore')
+                df.rename(columns={
+                    'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA',
+                    'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA',
+                    'POSIZIONE GRADUATORIA': 'POSIZIONE',
+                    'FASCIA GRADUATORIA': 'FASCIA'
+                }, inplace=True, errors='ignore')
                 col_classe = None
                 for col in df.columns:
                     col_upper = str(col).strip().upper()
@@ -1370,13 +1375,32 @@ def genera_pdf():
                 def is_empty(val):
                     v = str(val).strip().lower()
                     return v in ['nan', '*', 'none', '', '-']
+
+                # --- CREAZIONE COLONNE ASSENTI ---
+                # Se FASCIA non esiste nel CSV, la ricaviamo dal nome del file
+                if not any(str(c).strip().upper() == 'FASCIA' for c in df.columns):
+                    fname_upper = file_trovato.name.upper()
+                    if '1_FASCIA' in fname_upper or 'I_FASCIA' in fname_upper:
+                        df['FASCIA'] = 'I'
+                    elif '2_FASCIA' in fname_upper or 'II_FASCIA' in fname_upper:
+                        df['FASCIA'] = 'II'
+                    else:
+                        df['FASCIA'] = ''
+
+                # Se POSIZIONE non esiste nel CSV, la ricaviamo dall'indice riga
+                if not any('POSIZIONE' in str(c).strip().upper() for c in df.columns) and not df.empty:
+                    df['POSIZIONE'] = range(1, len(df) + 1)
+
+                # --- PROTEZIONE COLONNE IMPORTANTI ---
                 cols_to_drop = []
-                keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA']
+                keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA', 'POSIZIONE']
+                keep_cols_upper = [c.upper() for c in keep_cols]
                 for col in df.columns:
                     unique_vals = [val for val in df[col].unique() if not is_empty(val)]
                     col_upper = str(col).upper()
                     is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
-                    is_keep_col = col_upper in [c.upper() for c in keep_cols]
+                    # Match parziale: "POSIZIONE" protegge anche "POSIZIONE GRADUATORIA" etc.
+                    is_keep_col = any(k in col_upper for k in keep_cols_upper)
                     if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col: cols_to_drop.append(col)
                     if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower(): cols_to_drop.append(col)
                 df = df.drop(columns=cols_to_drop, errors='ignore')
@@ -1407,6 +1431,7 @@ def genera_pdf():
                     if str(col).upper() in ['COGNOME', 'NOME']: width = max(width, 35)
                     if 'TOTALE' in str(col).upper() or 'PUNTEGGIO' in str(col).upper(): width = max(width, 25)
                     if 'POSIZIONE' in str(col).upper(): width = max(width, 20)
+                    if str(col).upper() == 'FASCIA': width = max(width, 18)
                     col_widths[col] = width
                     total_width += width
                 page_width = 277
