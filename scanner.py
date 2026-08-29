@@ -1658,7 +1658,17 @@ def genera_bollettino():
             posizioni_viste = set()
             prefetch_files_parallel(repo, files_classe)
             for file_obj in sorted(files_classe, key=lambda x: x.name):
-                logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} (classe {classe_key}) ---")
+                
+                # FIX: individua la fascia dal percorso cartella
+                path_lower = file_obj.path.lower()
+                if '1_fascia' in path_lower:
+                    fascia_file = 'F1'
+                elif '2_fascia' in path_lower:
+                    fascia_file = 'F2'
+                else:
+                    fascia_file = ''
+
+                logger.info(f"--- [COUNT DEBUG] Inizio lettura file: {file_obj.name} (classe {classe_key}, fascia={fascia_file}) ---")
                 try:
                     file_data = download_github_file_robust(repo, file_obj)
                     if file_data is None:
@@ -1728,7 +1738,8 @@ def genera_bollettino():
                             pos_str = str(pos_v).strip().upper()
                             if pos_str in ('', 'NAN', 'NONE', '*', 'NAN.0'):
                                 keep.append(True); continue
-                            firma = (nome_v, pos_str)
+                            # FIX: chiave include la fascia, così posizioni uguali in I e II Fascia NON vengono deduplicate
+                            firma = (fascia_file, nome_v, pos_str)
                             if firma in posizioni_viste:
                                 keep.append(False)
                             else:
