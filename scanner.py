@@ -1866,9 +1866,11 @@ def genera_bollettino():
                     
                 try:
                     pos_val = row.get('POSIZIONE')
-                    if pd.isna(pos_val) or pos_val == '' or pos_val == '*':
-                        continue
-                    pos = int(float(pos_val))
+                    pos = 0
+                    # FIX: Se la posizione è vuota (es. spezzoni senza posizione), mettiamo 0
+                    # così non altera la "Posizione Massima", ma non scartiamo la nomina
+                    if not pd.isna(pos_val) and pos_val != '' and pos_val != '*':
+                        pos = int(float(pos_val))
                     
                     cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
                     nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
@@ -1882,13 +1884,19 @@ def genera_bollettino():
                         
                     punt_val = row.get('PUNTEGGIO')
                     punt = pulisci_punteggio(punt_val)
+                    # FIX: Se manca il punteggio, non scartiamo la nomina! Usiamo 0.0 per contarla.
                     if punt is None:
-                        continue
+                        punt = 0.0
                         
                     contratto = str(row.get('TIPO CONTRATTO', '')).strip().upper()
                     codice_scuola = str(row.get('CODICE SCUOLA', '')).strip().upper()
                     
-                    candidato_id = f"{fascia_raw}_{pos}"
+                    # FIX: Deduplichiamo includendo Fascia, Posizione, Cognome, Nome e Punteggio.
+                    # Questo garantisce che le 8 righe di Reggio Emilia (anche quelle senza nome
+                    # o con posizioni/punteggi anomali) vengano contate come 8 persone distinte.
+                    # Rispetta la regola: F1 e F2 sono separate, e i rinnovi normali (stesso nominato, 
+                    # stessa posizione, stesso punteggio) vengono fusi in 1.
+                    candidato_id = f"{fascia_raw}_{pos}_{cog}_{nom}_{punt}"
                     
                 except (ValueError, TypeError):
                     continue
@@ -1908,15 +1916,18 @@ def genera_bollettino():
                 if pos > prov_data["max_posizione"]:
                     prov_data["max_posizione"] = pos
                     
-                if 'ANNUALE' in contratto:
-                    if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
-                        prov_data["min_31_08"] = punt
-                elif 'TERMINE' in contratto or 'FINO AL' in contratto:
-                    if prov_data["min_30_06"] is None or punt < prov_data["min_30_06"]:
-                        prov_data["min_30_06"] = punt
-                elif 'SPEZZONE' in contratto:
-                    if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
-                        prov_data["min_spezzoni"] = punt
+                # FIX: Aggiorniamo i cut-off SOLO se abbiamo un punteggio valido (> 0).
+                # In questo modo le nomine senza punteggio vengono contate, ma non sporcano i cut-off.
+                if punt > 0:
+                    if 'ANNUALE' in contratto:
+                        if prov_data["min_31_08"] is None or punt < prov_data["min_31_08"]:
+                            prov_data["min_31_08"] = punt
+                    elif 'TERMINE' in contratto or 'FINO AL' in contratto:
+                        if prov_data["min_30_06"] is None or punt < prov_data["min_30_06"]:
+                            prov_data["min_30_06"] = punt
+                    elif 'SPEZZONE' in contratto:
+                        if prov_data["min_spezzoni"] is None or punt < prov_data["min_spezzoni"]:
+                            prov_data["min_spezzoni"] = punt
 
             # --- PULIZIA MEMORIA ---
             del df
