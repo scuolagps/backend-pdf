@@ -1261,12 +1261,19 @@ def genera_pdf():
                     continue
 
                 df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed')]
+                
+                # --- DEBUG 1 ---
+                logger.info(f"[DEBUG 1] Colonne lette da CSV ({file_trovato.name}): {list(df.columns)}")
+                
                 df.rename(columns={
                     'CODICE GRADUATORIA DI INCLUSIONE E DESCRIZIONE': 'CODICE GRADUATORIA',
                     'ORDINE SCUOLA GRADUATORIA': 'ORDINE SCUOLA',
                     'POSIZIONE GRADUATORIA': 'POSIZIONE',
                     'FASCIA GRADUATORIA': 'FASCIA'
                 }, inplace=True, errors='ignore')
+                
+                # --- DEBUG 2 ---
+                logger.info(f"[DEBUG 2] Colonne dopo rename: {list(df.columns)}")
                 col_classe = None
                 for col in df.columns:
                     col_upper = str(col).strip().upper()
@@ -1391,6 +1398,17 @@ def genera_pdf():
                 if not any('POSIZIONE' in str(c).strip().upper() for c in df.columns) and not df.empty:
                     df['POSIZIONE'] = range(1, len(df) + 1)
 
+                # --- DEBUG 3 ---
+                logger.info(f"[DEBUG 3] Colonne prima del drop: {list(df.columns)}")
+                if 'FASCIA' in df.columns:
+                    logger.info(f"[DEBUG 3] Valori unici FASCIA: {df['FASCIA'].unique()}")
+                else:
+                    logger.warning("[DEBUG 3] Colonna FASCIA assente prima del drop!")
+                if 'POSIZIONE' in df.columns:
+                    logger.info(f"[DEBUG 3] Valori unici POSIZIONE (primi 5): {df['POSIZIONE'].unique()[:5]}")
+                else:
+                    logger.warning("[DEBUG 3] Colonna POSIZIONE assente prima del drop!")
+
                 # --- PROTEZIONE COLONNE IMPORTANTI ---
                 cols_to_drop = []
                 keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA', 'POSIZIONE']
@@ -1401,9 +1419,17 @@ def genera_pdf():
                     is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
                     # Match parziale: "POSIZIONE" protegge anche "POSIZIONE GRADUATORIA" etc.
                     is_keep_col = any(k in col_upper for k in keep_cols_upper)
-                    if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col: cols_to_drop.append(col)
-                    if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower(): cols_to_drop.append(col)
+                    if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col: 
+                        cols_to_drop.append(col)
+                        logger.info(f"[DEBUG 3] Colonna '{col}' marcata per DROP (valore unico o vuota).")
+                    if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower(): 
+                        cols_to_drop.append(col)
+                        logger.info(f"[DEBUG 3] Colonna '{col}' marcata per DROP (parola vietata).")
+                        
                 df = df.drop(columns=cols_to_drop, errors='ignore')
+                
+                # --- DEBUG 4 ---
+                logger.info(f"[DEBUG 4] Colonne FINALI pronte per il PDF: {list(df.columns)}")
 
                 def format_val(val):
                     s = str(val).strip()
