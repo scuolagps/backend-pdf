@@ -1433,10 +1433,13 @@ def genera_pdf():
                             lines.append(current_line)
                             current_line = word
                     if current_line: lines.append(current_line)
-                    if not lines: lines = [""]
+                    if not lines: lines = [" "]
                     if len(lines) > 2: lines = [lines[0], " ".join(lines[1:])]
-                    while len(lines) < 2: lines.append("")
-                    header_texts[col] = "\n".join(lines)
+                    # FIX: Usiamo uno spazio " " invece di "" per le righe vuote.
+                    # Questo evita che FPDF generi una terza riga fantasma a causa del \n finale.
+                    while len(lines) < 2: lines.append(" ")
+                    # Rimuoviamo eventuali \n finali che ingannano l'altezza di FPDF
+                    header_texts[col] = "\n".join(lines).rstrip('\n')
 
                 def draw_table_header(add_spacer=False):
                     y_start = pdf.get_y()
