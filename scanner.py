@@ -742,24 +742,27 @@ def get_scuole_dict_adss(repo):
         logger.info(f"=== FINE DEBUG ===")
 
         scuole_dict = {}
-        # Strategy 0: 'scuole:' format
+        
+        # Strategy 0: parse "REGIONE: PROVINCIA NUM, PROVINCIA NUM, ..." 
+        # o qualunque formato "QUALUNA: PROVINCIA NUM, ..."
         for line in lines_all:
             line = line.strip()
-            if not line:
+            if not line or ':' not in line:
                 continue
-            if 'scuole' in line.lower():
-                parts = re.split(r'scuole\s*:', line, flags=re.IGNORECASE)
-                if len(parts) > 1:
-                    prov_part = parts[1]
-                    matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
-                    for match in matches:
-                        prov_raw = match[0].strip().strip(',').strip()
-                        num_str = match[1]
-                        sigla = to_sigla(prov_raw)
-                        if sigla:
-                            _, nome = PROVINCE_DATA[sigla]
-                            scuole_dict[nome] = int(num_str)
-        logger.info(f"Strategy 0 (formato 'scuole:'): {len(scuole_dict)} province.")
+            # Splitta sul primo ":" — sinistra = regione/etichetta, destra = coppie
+            _, _, pairs_part = line.partition(':')
+            if not pairs_part.strip():
+                continue
+            # Estrai ogni coppia "NOME PROVINCIA NUM"
+            matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', pairs_part)
+            for match in matches:
+                prov_raw = match[0].strip().strip(',').strip()
+                num_str = match[1]
+                sigla = to_sigla(prov_raw)
+                if sigla:                                   # None se è una regione -> scartata
+                    _, nome = PROVINCE_DATA[sigla]
+                    scuole_dict[nome] = int(num_str)
+        logger.info(f"Strategy 0 (formato 'REGIONE: PROV NUM, ...'): {len(scuole_dict)} province.")
 
         # Strategy 1: sigla/nome + numero riga per riga
         for line in lines_all:
@@ -782,6 +785,8 @@ def get_scuole_dict_adss(repo):
                     scuole_dict[nome] = int(m.group(2))
                     continue
         logger.info(f"Strategy 1 (riga-per-riga sigla/nome): {len(scuole_dict)} province.")
+        
+        # ... [IL RESTO DELLA FUNZIONE RIMANE UGUALE] ...
 
         # Strategy 2: CSV
         if not scuole_dict:
@@ -1303,7 +1308,7 @@ def genera_pdf():
         if is_sec_ii:
             if scuole_spec == "TOTALI_ADSS":
                 # ADSS - Sostegno Sec. II grado: legge dal file .txt dedicato
-                scuole_dict = get_scuole_dict_adss(repo)  # <--- RIGA CORRETTA
+                scuole_dict = get_scuole_dict_adss(repo)
             else:
                 csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper, csv_filename=scuole_spec)
                 scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
