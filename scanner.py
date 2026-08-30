@@ -1451,6 +1451,8 @@ def genera_pdf():
                     w = 0
                     if 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper:
                         w = 25
+                    elif 'ORDINE' in col_upper:  # <-- AGGIUNTO: larghezza fissa per Ordine Scuola
+                        w = 25
                     elif 'CODICE' in col_upper:
                         w = 22
                     elif col_upper == 'FASCIA':
@@ -1503,6 +1505,8 @@ def genera_pdf():
                         display_col = 'POS.'
                     elif 'UFFICIO' in col_upper:
                         display_col = 'UFFICIO'
+                    elif 'ORDINE' in col_upper:  # <-- AGGIUNTO: abbreviazione
+                        display_col = 'ORD. SCUOLA'
                     elif 'CODICE' in col_upper:
                         display_col = 'CODICE'
                     elif 'PUNTEGGIO TOTALE' in col_upper:
@@ -1512,24 +1516,22 @@ def genera_pdf():
                     else:
                         display_col = str(col)
                         
-                    char_limit = max(1, int(col_widths[col] / 2.0))
-                    words = display_col.split()
-                    lines = []
-                    current_line = ""
-                    for word in words:
-                        if len(current_line) + len(word) + 1 <= char_limit:
-                            current_line = (current_line + " " + word).strip()
-                        else:
-                            lines.append(current_line)
-                            current_line = word
-                    if current_line: lines.append(current_line)
-                    if not lines: lines = [" "]
-                    if len(lines) > 2: lines = [lines[0], " ".join(lines[1:])]
-                    # FIX: Usiamo uno spazio " " invece di "" per le righe vuote.
-                    # Questo evita che FPDF generi una terza riga fantasma a causa del \n finale.
-                    while len(lines) < 2: lines.append(" ")
-                    # Rimuoviamo eventuali \n finali che ingannano l'altezza di FPDF
-                    header_texts[col] = "\n".join(lines).rstrip('\n')
+                    # --- NUOVA LOGICA DI WRAPPING SICURA ---
+                    # Usiamo split_only=True per lasciare che FPDF calcoli esattamente lo spazio necessario
+                    splitted = pdf.multi_cell(col_widths[col], line_height, display_col, split_only=True, align='L')
+                    
+                    # Ci assicuriamo che ci siano al massimo 2 righe per mantenere l'altezza costante (10mm)
+                    if len(splitted) > 2:
+                        line2 = splitted[1].rstrip()
+                        # Se la seconda riga è stata tagliata a metà parola, aggiungiamo i puntini
+                        if not line2.endswith('...'):
+                            line2 += '...'
+                        splitted = [splitted[0], line2]
+                    
+                    while len(splitted) < 2:
+                        splitted.append(" ")
+                        
+                    header_texts[col] = "\n".join(splitted).rstrip('\n')
 
                 def draw_table_header(add_spacer=False):
                     y_start = pdf.get_y()
