@@ -1303,7 +1303,7 @@ def genera_pdf():
         if is_sec_ii:
             if scuole_spec == "TOTALI_ADSS":
                 # ADSS - Sostegno Sec. II grado: legge dal file .txt dedicato
-                scuole_dict = get_scuole_dict(repo, is_adss=True)
+                scuole_dict = get_scuole_dict_adss(repo)  # <--- RIGA CORRETTA
             else:
                 csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper, csv_filename=scuole_spec)
                 scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
