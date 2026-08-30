@@ -203,7 +203,7 @@ CLASSI_REGISTRY = {
         "IRC":  {"label": "IRC - Religione Cattolica", "alias": {"IRC"}, "scuole": "IRC (Religione Cattolica).csv"},
     },
     "secondaria_ii": {
-        "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS", "A029"}},
+        "ADSS": {"label": "ADSS - Sostegno Sec. II grado", "alias": {"ADSS", "A029"}, "scuole": "TOTALI_ADSS"},
         "A017": {"label": "A017 - Disegno e storia dell'arte", "alias": {"A017", "A-17", "A17"}, "scuole": "A-17 (Disegno e storia dell'arte).csv"},
         "A027": {"label": "A027 - Matematica e fisica", "alias": {"A027", "A-27", "A27"}, "scuole": "A-27 (Matematica e fisica).csv"},
         "A054": {"label": "A054 - Storia dell'arte", "alias": {"A054", "A-54", "A54"}, "scuole": "A-54 (Storia dell'arte).csv"},
@@ -459,6 +459,8 @@ _SCUOLE_REGOLARE_CACHE = None
 _SCUOLE_MUSICALI_CACHE = None
 SCUOLE_REGOLARI_PATH = "Numero scuole I grado/Scuole_Statali_Totali_MM.txt"
 SCUOLE_MUSICALI_PATH = "Numero scuole I grado/Riepilogo_Scuole_Musicali.txt"
+SCUOLE_ADSS_PATH = "Numero scuole II grado/conteggio_scuole_per_provincia.txt"
+_SCUOLE_ADSS_CACHE = None
 
 NOME_TO_SIGLA = {}
 REGIONI_NORM = set()
@@ -715,6 +717,158 @@ def get_scuole_dict(repo, is_musical=False):
         else:
             _SCUOLE_REGOLARE_CACHE = result_dict
             return _SCUOLE_REGOLARE_CACHE
+    except Exception as e:
+        logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}", exc_info=True)
+        return SCUOLE_FALLBACK
+def get_scuole_dict_adss(repo):
+    """Legge il conteggio scuole per ADSS dal file .txt dedicato in 'Numero scuole II grado'."""
+    global _SCUOLE_ADSS_CACHE
+    if _SCUOLE_ADSS_CACHE is not None:
+        return _SCUOLE_ADSS_CACHE
+    file_path = SCUOLE_ADSS_PATH
+    tipo = "ADSS (Sostegno Sec. II)"
+    try:
+        logger.info(f"Lettura file scuole ({tipo}): {file_path}")
+        file_content = repo.get_contents(file_path)
+        raw_bytes = file_content.decoded_content
+        text = raw_bytes.decode('utf-8', errors='ignore')
+        text = text.replace('\ufeff', '').replace('\r\n', '\n').replace('\r', '\n')
+
+        lines_all = [l for l in text.split('\n')]
+        logger.info(f"=== DEBUG FILE ({tipo}) ===")
+        logger.info(f"Totale righe: {len(lines_all)} | Lunghezza testo: {len(text)} caratteri")
+        for i, line in enumerate(lines_all[:20]):
+            logger.info(f"  Riga {i} [{len(line)} chars]: |{line}|")
+        logger.info(f"=== FINE DEBUG ===")
+
+        scuole_dict = {}
+        # Strategy 0: 'scuole:' format
+        for line in lines_all:
+            line = line.strip()
+            if not line:
+                continue
+            if 'scuole' in line.lower():
+                parts = re.split(r'scuole\s*:', line, flags=re.IGNORECASE)
+                if len(parts) > 1:
+                    prov_part = parts[1]
+                    matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]+?)\s+(\d+)', prov_part)
+                    for match in matches:
+                        prov_raw = match[0].strip().strip(',').strip()
+                        num_str = match[1]
+                        sigla = to_sigla(prov_raw)
+                        if sigla:
+                            _, nome = PROVINCE_DATA[sigla]
+                            scuole_dict[nome] = int(num_str)
+        logger.info(f"Strategy 0 (formato 'scuole:'): {len(scuole_dict)} province.")
+
+        # Strategy 1: sigla/nome + numero riga per riga
+        for line in lines_all:
+            line = line.strip()
+            if not line or len(line) < 3:
+                continue
+            m = re.match(r'^([A-Z]{2})\s*[:;\t,\s\-|]+\s*(\d+)', line)
+            if m:
+                sigla_raw = m.group(1).upper()
+                if sigla_raw in PROVINCE_DATA:
+                    _, nome = PROVINCE_DATA[sigla_raw]
+                    scuole_dict[nome] = int(m.group(2))
+                    continue
+            m = re.match(r'^([a-zA-ZÀ-ÿ\'\-\.\s]{3,}?)\s*[:;\t,\s\-|]+\s*(\d+)', line)
+            if m:
+                prov_raw = m.group(1).strip()
+                sigla = to_sigla(prov_raw)
+                if sigla:
+                    _, nome = PROVINCE_DATA[sigla]
+                    scuole_dict[nome] = int(m.group(2))
+                    continue
+        logger.info(f"Strategy 1 (riga-per-riga sigla/nome): {len(scuole_dict)} province.")
+
+        # Strategy 2: CSV
+        if not scuole_dict:
+            logger.info("Strategy 1 fallita. Provo formato CSV...")
+            for sep in [';', ',', '\t', '|']:
+                try:
+                    csv_io = io.StringIO(text)
+                    df_temp = pd.read_csv(csv_io, sep=sep, dtype=str, skipinitialspace=True)
+                    if len(df_temp.columns) >= 2 and len(df_temp) > 0:
+                        logger.info(f"CSV (sep='{sep}', con header): {len(df_temp)} righe. Colonne: {list(df_temp.columns)}")
+                        prov_col = None
+                        num_col = None
+                        for col in df_temp.columns:
+                            col_upper = str(col).upper().strip()
+                            if any(k in col_upper for k in ['PROVINC', 'UFFICIO', 'SEDE', 'COMUNE', 'TERRITORIO', 'SIGLA']):
+                                prov_col = prov_col or col
+                            if any(k in col_upper for k in ['NUMERO', 'SCUOLE', 'TOTALE', 'N.', 'N ', 'COUNT', 'QUANTITA']):
+                                num_col = num_col or col
+                        if prov_col and num_col:
+                            for _, row in df_temp.iterrows():
+                                prov_val = str(row[prov_col]).strip()
+                                num_val = str(row[num_col]).strip()
+                                sigla = to_sigla(prov_val)
+                                if sigla:
+                                    _, nome = PROVINCE_DATA[sigla]
+                                    match_num = re.search(r'(\d+)', num_val)
+                                    if match_num:
+                                        scuole_dict[nome] = int(match_num.group(1))
+                            logger.info(f"CSV header: prov_col='{prov_col}', num_col='{num_col}' -> {len(scuole_dict)} province")
+                        if not scuole_dict:
+                            csv_io2 = io.StringIO(text)
+                            df_temp2 = pd.read_csv(csv_io2, sep=sep, dtype=str, skipinitialspace=True, header=None)
+                            if len(df_temp2.columns) >= 2 and len(df_temp2) > 0:
+                                best_dict = {}
+                                for ci in range(len(df_temp2.columns)):
+                                    for ni in range(len(df_temp2.columns)):
+                                        if ci == ni:
+                                            continue
+                                        temp_dict = {}
+                                        for _, row in df_temp2.iterrows():
+                                            prov_val = str(row.iloc[ci]).strip()
+                                            num_val = str(row.iloc[ni]).strip()
+                                            sigla = to_sigla(prov_val)
+                                            if sigla:
+                                                match_num = re.search(r'(\d+)', num_val)
+                                                if match_num:
+                                                    _, nome = PROVINCE_DATA[sigla]
+                                                    temp_dict[nome] = int(match_num.group(1))
+                                        if len(temp_dict) > len(best_dict):
+                                            best_dict = temp_dict
+                                scuole_dict = best_dict
+                        if scuole_dict:
+                            break
+                except Exception as e:
+                    logger.debug(f"CSV sep='{sep}' fallito: {e}")
+                    continue
+
+        # Strategy 3: regex generica su tutto il testo
+        if not scuole_dict:
+            logger.info("Strategy 2 fallita. Provo regex generica su tutto il testo...")
+            all_matches = re.findall(r'\b([A-Z]{2})\b[\s:;\t,\-|]+(\d+)', text)
+            for sigla_raw, num_str in all_matches:
+                sigla_raw = sigla_raw.upper()
+                if sigla_raw in PROVINCE_DATA:
+                    _, nome = PROVINCE_DATA[sigla_raw]
+                    scuole_dict[nome] = int(num_str)
+            if not scuole_dict:
+                all_matches = re.findall(r'([a-zA-ZÀ-ÿ\'\-\.\s]{4,})\s*[:;\t,\-|]\s*(\d+)', text)
+                for prov_raw, num_str in all_matches:
+                    sigla = to_sigla(prov_raw.strip())
+                    if sigla:
+                        _, nome = PROVINCE_DATA[sigla]
+                        scuole_dict[nome] = int(num_str)
+
+        if not scuole_dict:
+            logger.error(f"!!! NESSUN DATO TROVATO nel file ({tipo}) !!!")
+            logger.error(f"Contenuto file (primi 1000 caratteri):")
+            logger.error(text[:1000])
+            result_dict = SCUOLE_FALLBACK
+        else:
+            logger.info(f"Dizionario scuole {tipo} caricato: {len(scuole_dict)} province.")
+            for i, (nome, num) in enumerate(list(scuole_dict.items())[:5]):
+                logger.info(f"  {nome}: {num}")
+            result_dict = scuole_dict
+
+        _SCUOLE_ADSS_CACHE = result_dict
+        return _SCUOLE_ADSS_CACHE
     except Exception as e:
         logger.error(f"Errore critico nel caricamento del file scuole ({tipo}): {e}", exc_info=True)
         return SCUOLE_FALLBACK
@@ -1147,8 +1301,12 @@ def genera_pdf():
 
         scuole_spec = entry.get("scuole")
         if is_sec_ii:
-            csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper, csv_filename=scuole_spec)
-            scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
+            if scuole_spec == "TOTALI_ADSS":
+                # ADSS - Sostegno Sec. II grado: legge dal file .txt dedicato
+                scuole_dict = get_scuole_dict(repo, is_adss=True)
+            else:
+                csv_scuole = get_scuole_dict_sec_ii_from_csv(repo, codice_upper, csv_filename=scuole_spec)
+                scuole_dict = csv_scuole if csv_scuole is not None else dizionario_scuole_altro
         elif scuole_spec == "MUSICALI":
             scuole_dict = get_scuole_dict(repo, is_musical=True)
         elif scuole_spec == "TOTALI_MM":
