@@ -1924,19 +1924,19 @@ def genera_bollettino():
                     grad_files_per_classe.setdefault(codice, set()).add(f)
                     logger.info(f"[BOLLETTINO] {codice}: graduatoria {f.name}")
 
-        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - dedup intelligente)
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - dedup intelligente intra-file)
         total_candidates = {}
         logger.info(f"[COUNT DEBUG] Classi con file graduatorie: {list(grad_files_per_classe.keys())}")
 
         for classe_key, files_classe in grad_files_per_classe.items():
-            posizioni_viste = set()
             prefetch_files_parallel(repo, files_classe)
             logger.info(f"========== [COUNT DEBUG] CLASSE: {classe_key} ==========")
             logger.info(f"[COUNT DEBUG] File trovati per {classe_key}: {[f.name for f in files_classe]}")
             
             for file_obj in sorted(files_classe, key=lambda x: x.name):
+                # Dedup SOLO all'interno dello stesso file
+                firme_viste_local = set()
                 
-                # FIX: individua la fascia dal percorso cartella
                 path_lower = file_obj.path.lower()
                 if '1_fascia' in path_lower:
                     fascia_file = 'F1'
@@ -1957,12 +1957,9 @@ def genera_bollettino():
 
                     if csv_text.strip().startswith("404") or len(csv_text) < 50:
                         logger.error(f"[BOLLETTINO] [COUNT DEBUG] Contenuto invalido per {file_obj.name}: '{csv_text[:100]}'")
-                        if "version https://git-lfs" in csv_text:
-                            logger.error(f"[BOLLETTINO] [COUNT DEBUG] ATTENZIONE: file Git LFS Pointer non scaricato!")
                         continue
 
                     try:
-                        # Carichiamo anche NOME e CODICE FISCALE per deduplicare correttamente le persone
                         cols_to_read = ['UFFICIO PROVINCIALE', 'COGNOME', 'NOME', 'CODICE FISCALE', 'POSIZIONE', 'POSIZIONE GRADUATORIA']
                         df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True,
                                               usecols=lambda c: c.strip().upper() in cols_to_read)
@@ -1983,106 +1980,69 @@ def genera_bollettino():
 
                     has_posizione = 'POSIZIONE' in df_grad.columns
 
-                    # --- CONTEGGIO VETTORIALE ---
                     uff = df_grad['UFFICIO PROVINCIALE'].fillna('').astype(str).str.strip()
                     cog = df_grad['COGNOME'].fillna('').astype(str).str.strip()
                     
                     mask = (~uff.str.upper().isin(['', 'NAN', 'NONE'])) & \
                            (~cog.str.upper().isin(['', 'NAN', 'NONE', '*', 'COGNOME', 'NOMINATI', 'UFFICIO PROVINCIALE', 'CLASSE DI CONCORSO']))
 
-                    cols_needed = ['UFFICIO PROVINCIALE', 'COGNOME']
-                    if 'NOME' in df_grad.columns: cols_needed.append('NOME')
-                    if 'CODICE FISCALE' in df_grad.columns: cols_needed.append('CODICE FISCALE')
-                    if has_posizione: cols_needed.append('POSIZIONE')
-                    
-                    sub = df_grad.loc[mask, cols_needed].copy()
+                    sub = df_grad.loc[mask].copy()
                     sub['_sigla'] = sub['UFFICIO PROVINCIALE'].map(to_sigla)
-
-                    if sub['_sigla'].isna().any():
-                        strani = sub.loc[sub['_sigla'].isna(), 'UFFICIO PROVINCIALE'].unique()[:10]
-                        logger.warning(f"[COUNT DEBUG] Valori UFFICIO non riconosciuti in {file_obj.name}: {list(strani)}")
-
                     sub = sub.dropna(subset=['_sigla'])
                     sub['_nome'] = sub['_sigla'].map(lambda s: PROVINCE_DATA[s][1])
 
-                    rows_before_dedup = len(sub)
-                    teramo_before = int(sub['_nome'].eq('Teramo').sum())
-
-                    # Prepariamo gli array per la dedup
+                    rows_in_file = len(sub)
+                    teramo_in_file = int(sub['_nome'].eq('Teramo').sum())
+                    
+                    keep = []
+                    dedup_count = 0
+                    
                     nomi_arr = sub['_nome'].to_numpy()
                     cog_arr = sub['COGNOME'].fillna('').astype(str).str.strip().str.upper().to_numpy()
                     nom_arr = sub['NOME'].fillna('').astype(str).str.strip().str.upper().to_numpy() if 'NOME' in sub.columns else ['']*len(sub)
                     cf_arr = sub['CODICE FISCALE'].fillna('').astype(str).str.strip().str.upper().to_numpy() if 'CODICE FISCALE' in sub.columns else ['']*len(sub)
                     
-                    keep = []
-                    dedup_count = 0
-                    teramo_dedup = 0
-                    
                     if has_posizione:
                         pos_arr = sub['POSIZIONE'].fillna('').astype(str).str.strip().to_numpy()
-                        for i in range(len(nomi_arr)):
-                            nome_v = nomi_arr[i]
-                            pos_str = str(pos_arr[i]).strip().upper()
-                            cog_v = cog_arr[i]
-                            nom_v = nom_arr[i]
-                            cf_v = cf_arr[i]
-                            
-                            # Se c'è il Codice Fiscale è il modo migliore per deduplicare
-                            if cf_v and cf_v not in ('NAN', 'NONE'):
-                                firma = (fascia_file, nome_v, cf_v)
-                            # Se manca il CF ma abbiamo Cognome e Nome, usiamo quelli
-                            elif cog_v and cog_v not in ('NAN', 'NONE') and nom_v and nom_v not in ('NAN', 'NONE'):
-                                firma = (fascia_file, nome_v, cog_v + "_" + nom_v)
-                            # Fallback alla posizione se mancano i dati anagrafici
-                            else:
-                                if pos_str in ('', 'NAN', 'NONE', '*', 'NAN.0'):
-                                    keep.append(True); continue
-                                firma = (fascia_file, nome_v, pos_str)
-                                
-                            if firma in posizioni_viste:
-                                keep.append(False)
-                                dedup_count += 1
-                                if nome_v == 'Teramo': teramo_dedup += 1
-                            else:
-                                posizioni_viste.add(firma); keep.append(True)
-                                
-                        sub = sub.loc[keep]
                     else:
-                        # Se non c'è posizione, deduplichiamo solo per CF o Cognome+Nome
-                        for i in range(len(nomi_arr)):
-                            nome_v = nomi_arr[i]
-                            cog_v = cog_arr[i]
-                            nom_v = nom_arr[i]
-                            cf_v = cf_arr[i]
+                        pos_arr = [''] * len(sub)
+
+                    for i in range(len(nomi_arr)):
+                        nome_v = nomi_arr[i]
+                        cog_v = cog_arr[i]
+                        nom_v = nom_arr[i]
+                        cf_v = cf_arr[i]
+                        pos_str = str(pos_arr[i]).strip().upper()
+                        
+                        # Creiamo una firma univoca per la riga.
+                        # Se la riga è identica (stesso Cognome, Nome e Posizione) viene deduplicata.
+                        # Se solo la posizione è uguale ma il Cognome/Nome è diverso, NON viene deduplicata.
+                        if cf_v and cf_v not in ('NAN', 'NONE', ''):
+                            firma = (fascia_file, nome_v, cf_v, pos_str)
+                        elif cog_v and cog_v not in ('NAN', 'NONE', ''):
+                            firma = (fascia_file, nome_v, cog_v, nom_v, pos_str)
+                        else:
+                            # Se mancano i dati anagrafici, non possiamo deduplicare in modo sicuro
+                            keep.append(True)
+                            continue
                             
-                            if cf_v and cf_v not in ('NAN', 'NONE'):
-                                firma = (fascia_file, nome_v, cf_v)
-                            elif cog_v and cog_v not in ('NAN', 'NONE') and nom_v and nom_v not in ('NAN', 'NONE'):
-                                firma = (fascia_file, nome_v, cog_v + "_" + nom_v)
-                            else:
-                                keep.append(True); continue
-                                
-                            if firma in posizioni_viste:
-                                keep.append(False)
-                                dedup_count += 1
-                                if nome_v == 'Teramo': teramo_dedup += 1
-                            else:
-                                posizioni_viste.add(firma); keep.append(True)
-                        sub = sub.loc[keep]
-
-                    teramo_after = int(sub['_nome'].eq('Teramo').sum())
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_before_dedup}. Teramo lette={teramo_before}.")
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe scartate come DOPPIONI (persone identiche)={dedup_count}. Teramo scartate={teramo_dedup}.")
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe valide AGGIUNTE={len(sub)}. Teramo aggiunte={teramo_after}.")
-
+                        if firma in firme_viste_local:
+                            keep.append(False)
+                            dedup_count += 1
+                        else:
+                            keep.append(True)
+                            firme_viste_local.add(firma)
+                            
+                    sub = sub.loc[keep]
+                    
                     vc = sub['_nome'].value_counts()
                     for nome_v, n_v in vc.items():
                         total_candidates[(classe_key, nome_v)] = total_candidates.get((classe_key, nome_v), 0) + int(n_v)
-                    rows_counted_total = int(vc.sum())
-                    rows_counted_roma = int(vc.get('Roma', 0))
-
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name} processato. Righe valide totali conteggiate: {rows_counted_total}. Di cui Roma: {rows_counted_roma}")
-                    logger.info(f"--- [COUNT DEBUG] Fine lettura file: {file_obj.name} ---\n")
+                    
+                    teramo_added = int(vc.get('Teramo', 0))
+                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_in_file}. Teramo lette={teramo_in_file}.")
+                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe scartate come DOPPIONI INTRA-FILE={dedup_count}.")
+                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe valide AGGIUNTE={len(sub)}. Teramo aggiunte={teramo_added}.")
 
                     del df_grad
                     del csv_text
@@ -2091,7 +2051,6 @@ def genera_bollettino():
                     logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                     continue
 
-            del posizioni_viste
             gc.collect()
 
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
