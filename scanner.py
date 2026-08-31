@@ -1924,7 +1924,7 @@ def genera_bollettino():
                     grad_files_per_classe.setdefault(codice, set()).add(f)
                     logger.info(f"[BOLLETTINO] {codice}: graduatoria {f.name}")
 
-        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - dedup intelligente intra-file)
+        # 3. CONTA CANDIDATI TOTALI PER PROVINCIA (KEYED BY CLASSE - dedup righe esattamente identiche)
         total_candidates = {}
         logger.info(f"[COUNT DEBUG] Classi con file graduatorie: {list(grad_files_per_classe.keys())}")
 
@@ -1934,8 +1934,6 @@ def genera_bollettino():
             logger.info(f"[COUNT DEBUG] File trovati per {classe_key}: {[f.name for f in files_classe]}")
             
             for file_obj in sorted(files_classe, key=lambda x: x.name):
-                # Dedup SOLO all'interno dello stesso file
-                firme_viste_local = set()
                 
                 path_lower = file_obj.path.lower()
                 if '1_fascia' in path_lower:
@@ -1960,16 +1958,31 @@ def genera_bollettino():
                         continue
 
                     try:
-                        cols_to_read = ['UFFICIO PROVINCIALE', 'COGNOME', 'NOME', 'CODICE FISCALE', 'POSIZIONE', 'POSIZIONE GRADUATORIA']
-                        df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True,
-                                              usecols=lambda c: c.strip().upper() in cols_to_read)
+                        # Leggiamo tutte le colonne per poter deduplicare righe ESATTAMENTE identiche
+                        df_grad = pd.read_csv(io.StringIO(csv_text), sep=';', dtype=str, skipinitialspace=True)
+                        
+                        # Rimuovi spazi vuoti dalle stringhe per confronto accurato
+                        for col in df_grad.columns:
+                            if df_grad[col].dtype == 'object':
+                                df_grad[col] = df_grad[col].str.strip()
+                                
+                        # Dedup righe ESATTAMENTE identiche (tutte le colonne)
+                        rows_before = len(df_grad)
+                        df_grad = df_grad.drop_duplicates()
+                        rows_after = len(df_grad)
+                        if rows_before != rows_after:
+                            logger.info(f"[COUNT DEBUG] Rimosse {rows_before - rows_after} righe ESATTAMENTE identiche in {file_obj.name}.")
+                            
+                        # Mantieni solo le colonne necessarie per il conteggio
+                        cols_to_keep = [c for c in df_grad.columns if c.strip().upper() in ['UFFICIO PROVINCIALE', 'COGNOME', 'NOME', 'POSIZIONE', 'POSIZIONE GRADUATORIA']]
+                        df_grad = df_grad[cols_to_keep]
+                        df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
+                        
                         if 'POSIZIONE GRADUATORIA' in df_grad.columns:
                             df_grad.rename(columns={'POSIZIONE GRADUATORIA': 'POSIZIONE'}, inplace=True)
                     except Exception as e_parse:
                         logger.error(f"[BOLLETTINO] [COUNT DEBUG] Errore parsing pandas per {file_obj.name}: {e_parse}")
                         continue
-
-                    df_grad.columns = [str(c).strip().upper() for c in df_grad.columns]
 
                     if 'UFFICIO PROVINCIALE' in df_grad.columns:
                         df_grad['UFFICIO PROVINCIALE'] = df_grad['UFFICIO PROVINCIALE'].replace('', pd.NA).ffill().fillna('')
@@ -1977,8 +1990,6 @@ def genera_bollettino():
                     if 'UFFICIO PROVINCIALE' not in df_grad.columns or 'COGNOME' not in df_grad.columns:
                         logger.warning(f"[BOLLETTINO] [COUNT DEBUG] Colonne obbligatorie mancanti in {file_obj.name}. File saltato.")
                         continue
-
-                    has_posizione = 'POSIZIONE' in df_grad.columns
 
                     uff = df_grad['UFFICIO PROVINCIALE'].fillna('').astype(str).str.strip()
                     cog = df_grad['COGNOME'].fillna('').astype(str).str.strip()
@@ -1994,57 +2005,12 @@ def genera_bollettino():
                     rows_in_file = len(sub)
                     teramo_in_file = int(sub['_nome'].eq('Teramo').sum())
                     
-                    keep = []
-                    dedup_count = 0
-                    teramo_dup_examples = []
-                    
-                    nomi_arr = sub['_nome'].to_numpy()
-                    cog_arr = sub['COGNOME'].fillna('').astype(str).str.strip().str.upper().to_numpy()
-                    nom_arr = sub['NOME'].fillna('').astype(str).str.strip().str.upper().to_numpy() if 'NOME' in sub.columns else ['']*len(sub)
-                    cf_arr = sub['CODICE FISCALE'].fillna('').astype(str).str.strip().str.upper().to_numpy() if 'CODICE FISCALE' in sub.columns else ['']*len(sub)
-                    
-                    if has_posizione:
-                        pos_arr = sub['POSIZIONE'].fillna('').astype(str).str.strip().to_numpy()
-                    else:
-                        pos_arr = [''] * len(sub)
-
-                    for i in range(len(nomi_arr)):
-                        nome_v = nomi_arr[i]
-                        cog_v = cog_arr[i]
-                        nom_v = nom_arr[i]
-                        cf_v = cf_arr[i]
-                        pos_str = str(pos_arr[i]).strip().upper()
-                        
-                        if cf_v and cf_v not in ('NAN', 'NONE', ''):
-                            firma = (fascia_file, nome_v, cf_v, pos_str)
-                        elif cog_v and cog_v not in ('NAN', 'NONE', ''):
-                            firma = (fascia_file, nome_v, cog_v, nom_v, pos_str)
-                        else:
-                            keep.append(True)
-                            continue
-                            
-                        if firma in firme_viste_local:
-                            keep.append(False)
-                            dedup_count += 1
-                            # Salva i primi 5 esempi di doppioni per Teramo per capire cosa viene scartato
-                            if nome_v == 'Teramo' and len(teramo_dup_examples) < 5:
-                                teramo_dup_examples.append(f"Cognome={cog_v}, Nome={nom_v}, CF={cf_v}, Posizione={pos_str}")
-                        else:
-                            keep.append(True)
-                            firme_viste_local.add(firma)
-                            
-                    sub = sub.loc[keep]
-                    
                     vc = sub['_nome'].value_counts()
                     for nome_v, n_v in vc.items():
                         total_candidates[(classe_key, nome_v)] = total_candidates.get((classe_key, nome_v), 0) + int(n_v)
                     
                     teramo_added = int(vc.get('Teramo', 0))
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_in_file}. Teramo lette={teramo_in_file}.")
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe scartate come DOPPIONI INTRA-FILE={dedup_count}.")
-                    if teramo_dup_examples:
-                        logger.warning(f"[COUNT DEBUG] Esempi di righe Teramo scartate come DOPPIONI: {teramo_dup_examples}")
-                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe valide AGGIUNTE={len(sub)}. Teramo aggiunte={teramo_added}.")
+                    logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_in_file}. Teramo aggiunte={teramo_added}.")
 
                     del df_grad
                     del csv_text
