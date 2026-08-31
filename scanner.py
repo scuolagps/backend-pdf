@@ -1929,10 +1929,13 @@ def genera_bollettino():
         logger.info(f"[COUNT DEBUG] Classi con file graduatorie: {list(grad_files_per_classe.keys())}")
 
         for classe_key, files_classe in grad_files_per_classe.items():
+            # Dedup tra varianti stesso-contenuto (es. A023 + AM2C): 1 posizione = 1 candidato
+            posizioni_viste = set()
             prefetch_files_parallel(repo, files_classe)
+            logger.info(f"========== [COUNT DEBUG] CLASSE: {classe_key} ==========")
+            logger.info(f"[COUNT DEBUG] File trovati per {classe_key}: {[f.name for f in files_classe]}")
+            
             for file_obj in sorted(files_classe, key=lambda x: x.name):
-                # Dedup SOLO all'interno dello stesso file (non cross-file)
-                posizioni_viste = set()
                 
                 # FIX: individua la fascia dal percorso cartella
                 path_lower = file_obj.path.lower()
@@ -1982,9 +1985,6 @@ def genera_bollettino():
                     if not has_posizione:
                         logger.warning(f"[BOLLETTINO] [COUNT DEBUG] Colonna POSIZIONE assente in {file_obj.name}: dedup non attiva su questo file.")
 
-                    rows_counted_total = 0
-                    rows_counted_roma = 0
-
                     # --- CONTEGGIO VETTORIALE (al posto di iterrows) ---
                     uff = df_grad['UFFICIO PROVINCIALE'].fillna('').astype(str).str.strip()
                     cog = df_grad['COGNOME'].fillna('').astype(str).str.strip()
@@ -2003,11 +2003,16 @@ def genera_bollettino():
                     sub = sub.dropna(subset=['_sigla'])
                     sub['_nome'] = sub['_sigla'].map(lambda s: PROVINCE_DATA[s][1])
 
+                    rows_before_dedup = len(sub)
+                    teramo_before = int(sub['_nome'].eq('Teramo').sum())
+
                     if has_posizione:
                         # FIX: fillna('') prima di astype(str) per evitare che NaN rimanga float
                         pos_arr = sub['POSIZIONE'].fillna('').astype(str).str.strip().to_numpy()
                         nomi_arr = sub['_nome'].to_numpy()
                         keep = []
+                        dedup_count = 0
+                        teramo_dedup = 0
                         for nome_v, pos_v in zip(nomi_arr, pos_arr):
                             # FIX: str(pos_v) per gestire eventuali float residui
                             pos_str = str(pos_v).strip().upper()
@@ -2017,9 +2022,18 @@ def genera_bollettino():
                             firma = (fascia_file, nome_v, pos_str)
                             if firma in posizioni_viste:
                                 keep.append(False)
+                                dedup_count += 1
+                                if nome_v == 'Teramo': teramo_dedup += 1
                             else:
                                 posizioni_viste.add(firma); keep.append(True)
                         sub = sub.loc[keep]
+                        
+                        teramo_after = int(sub['_nome'].eq('Teramo').sum())
+                        logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_before_dedup}. Teramo lette={teramo_before}.")
+                        logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe scartate come DOPPIONI={dedup_count}. Teramo scartate={teramo_dedup}.")
+                        logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe valide AGGIUNTE={len(sub)}. Teramo aggiunte={teramo_after}.")
+                    else:
+                        logger.info(f"[COUNT DEBUG] File {file_obj.name}: Colonna POSIZIONE assente. Aggiunte {rows_before_dedup} righe (Teramo: {teramo_before}).")
 
                     vc = sub['_nome'].value_counts()
                     for nome_v, n_v in vc.items():
@@ -2038,7 +2052,8 @@ def genera_bollettino():
                     logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                     continue
 
-            gc.collect()   # UNA raccolta per classe invece che per file
+            del posizioni_viste
+            gc.collect()   # UNA raccolta per classe invece che per file (su 0.1 CPU ogni collect costa 100-300ms)
 
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
