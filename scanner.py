@@ -1929,10 +1929,10 @@ def genera_bollettino():
         logger.info(f"[COUNT DEBUG] Classi con file graduatorie: {list(grad_files_per_classe.keys())}")
 
         for classe_key, files_classe in grad_files_per_classe.items():
-            # Dedup tra varianti stesso-contenuto (es. A023 + AM2C): 1 posizione = 1 candidato
-            posizioni_viste = set()
             prefetch_files_parallel(repo, files_classe)
             for file_obj in sorted(files_classe, key=lambda x: x.name):
+                # Dedup SOLO all'interno dello stesso file (non cross-file)
+                posizioni_viste = set()
                 
                 # FIX: individua la fascia dal percorso cartella
                 path_lower = file_obj.path.lower()
@@ -2038,8 +2038,7 @@ def genera_bollettino():
                     logger.error(f"[BOLLETTINO] Errore lettura graduatoria {file_obj.path}: {e}")
                     continue
 
-            del posizioni_viste
-            gc.collect()   # UNA raccolta per classe invece che per file (su 0.1 CPU ogni collect costa 100-300ms)
+            gc.collect()   # UNA raccolta per classe invece che per file
 
         logger.info(f"[COUNT DEBUG] Riepilogo finale total_candidates: {total_candidates}")
         logger.info(f"[BOLLETTINO] DEBUG: Totale candidati letti da graduatorie: {len(total_candidates)} province.")
