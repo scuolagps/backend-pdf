@@ -1996,6 +1996,7 @@ def genera_bollettino():
                     
                     keep = []
                     dedup_count = 0
+                    teramo_dup_examples = []
                     
                     nomi_arr = sub['_nome'].to_numpy()
                     cog_arr = sub['COGNOME'].fillna('').astype(str).str.strip().str.upper().to_numpy()
@@ -2014,21 +2015,20 @@ def genera_bollettino():
                         cf_v = cf_arr[i]
                         pos_str = str(pos_arr[i]).strip().upper()
                         
-                        # Creiamo una firma univoca per la riga.
-                        # Se la riga è identica (stesso Cognome, Nome e Posizione) viene deduplicata.
-                        # Se solo la posizione è uguale ma il Cognome/Nome è diverso, NON viene deduplicata.
                         if cf_v and cf_v not in ('NAN', 'NONE', ''):
                             firma = (fascia_file, nome_v, cf_v, pos_str)
                         elif cog_v and cog_v not in ('NAN', 'NONE', ''):
                             firma = (fascia_file, nome_v, cog_v, nom_v, pos_str)
                         else:
-                            # Se mancano i dati anagrafici, non possiamo deduplicare in modo sicuro
                             keep.append(True)
                             continue
                             
                         if firma in firme_viste_local:
                             keep.append(False)
                             dedup_count += 1
+                            # Salva i primi 5 esempi di doppioni per Teramo per capire cosa viene scartato
+                            if nome_v == 'Teramo' and len(teramo_dup_examples) < 5:
+                                teramo_dup_examples.append(f"Cognome={cog_v}, Nome={nom_v}, CF={cf_v}, Posizione={pos_str}")
                         else:
                             keep.append(True)
                             firme_viste_local.add(firma)
@@ -2042,6 +2042,8 @@ def genera_bollettino():
                     teramo_added = int(vc.get('Teramo', 0))
                     logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe totali lette={rows_in_file}. Teramo lette={teramo_in_file}.")
                     logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe scartate come DOPPIONI INTRA-FILE={dedup_count}.")
+                    if teramo_dup_examples:
+                        logger.warning(f"[COUNT DEBUG] Esempi di righe Teramo scartate come DOPPIONI: {teramo_dup_examples}")
                     logger.info(f"[COUNT DEBUG] File {file_obj.name}: Righe valide AGGIUNTE={len(sub)}. Teramo aggiunte={teramo_added}.")
 
                     del df_grad
