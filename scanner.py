@@ -2130,13 +2130,13 @@ def genera_bollettino():
                     if not pd.isna(pos_val) and pos_val != '' and pos_val != '*':
                         pos = int(float(pos_val))
                     
-                    # NUOVO FIX: Scarto righe anomale
-                    # Se la posizione nel bollettino supera il numero reale di candidati della 
-                    # graduatoria, l'intera riga viene scartata (non conta per max_posizione, 
-                    # né per nominati_univoci, né per nomine_totali).
+                    # NUOVO FIX: Gestione posizioni anomale
+                    # Se la posizione nel bollettino supera il numero reale di candidati, 
+                    # azzeriamo la posizione per non alterare la "Posizione Massima",
+                    # MA continuiamo a processare la riga per conteggiare la nomina reale.
                     tot_cand_prov = total_candidates.get((codice, current_prov), 0)
                     if tot_cand_prov > 0 and pos > tot_cand_prov:
-                        continue
+                        pos = 0 
 
                     cog = str(row.get('COGNOME ASPIRANTE', '')).strip().upper()
                     nom = str(row.get('NOME ASPIRANTE', '')).strip().upper()
