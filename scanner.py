@@ -1572,24 +1572,34 @@ def genera_pdf():
                 else:
                     logger.warning("[DEBUG 3] Colonna POSIZIONE assente prima del drop!")
 
-                # --- PROTEZIONE COLONNE IMPORTANTI ---
-                cols_to_drop = []
-                keep_cols = ['CODICE GRADUATORIA', 'FASCIA', 'ORDINE SCUOLA', 'POSIZIONE']
-                keep_cols_upper = [c.upper() for c in keep_cols]
+                # --- MANTENIAMO SOLO LE COLONNE DESIDERATE ---
+                # Sostituiamo la logica di cancellazione con una whitelist fissa.
+                # Ignoriamo se ci sono valori unici o vuoti: se la colonna è in questa lista, la teniamo.
+                cols_to_keep = []
                 for col in df.columns:
-                    unique_vals = [val for val in df[col].unique() if not is_empty(val)]
-                    col_upper = str(col).upper()
-                    is_ufficio_col = 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper
-                    # Match parziale: "POSIZIONE" protegge anche "POSIZIONE GRADUATORIA" etc.
-                    is_keep_col = any(k in col_upper for k in keep_cols_upper)
-                    if len(unique_vals) <= 1 and not is_ufficio_col and not is_keep_col: 
-                        cols_to_drop.append(col)
-                        logger.info(f"[DEBUG 3] Colonna '{col}' marcata per DROP (valore unico o vuota).")
-                    if 'pdf' in str(col).lower() or 'csv' in str(col).lower() or 'elenco' in str(col).lower() or 'allegato' in str(col).lower() or 'origine' in str(col).lower(): 
-                        cols_to_drop.append(col)
-                        logger.info(f"[DEBUG 3] Colonna '{col}' marcata per DROP (parola vietata).")
-                        
-                df = df.drop(columns=cols_to_drop, errors='ignore')
+                    col_upper = str(col).upper().strip()
+                    keep = False
+                    
+                    # Condizioni esatte per mantenere le colonne richieste
+                    if 'UFFICIO' in col_upper or 'PROVINCIA' in col_upper: keep = True
+                    elif 'CODICE' in col_upper: keep = True
+                    elif col_upper == 'FASCIA': keep = True
+                    elif 'ORDINE' in col_upper: keep = True
+                    elif 'POSIZIONE' in col_upper: keep = True
+                    elif 'TITOLO ACCESSO' in col_upper: keep = True
+                    elif 'TITOLI CULTURALI' in col_upper: keep = True
+                    elif 'TITOLI ARTISTICI' in col_upper: keep = True
+                    elif 'SERVIZI' in col_upper: keep = True
+                    elif 'PUNTEGGIO TOTALE' in col_upper: keep = True
+                    
+                    if keep:
+                        cols_to_keep.append(col)
+                    else:
+                        logger.info(f"[DEBUG 3] Colonna '{col}' marcata per DROP (non richiesta nella whitelist).")
+                
+                # Filtriamo il DataFrame tenendo solo le colonne selezionate
+                if cols_to_keep:
+                    df = df[cols_to_keep]
                 
                 # --- DEBUG 4 ---
                 logger.info(f"[DEBUG 4] Colonne FINALI pronte per il PDF: {list(df.columns)}")
