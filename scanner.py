@@ -536,7 +536,14 @@ def pulisci_punteggio(valore):
         s = s.replace(',', '.')
     match = re.search(r'(\d+\.?\d*)', s)
     if match:
-        return float(match.group(1))
+        val = float(match.group(1))
+        
+        # --- SOLO DEBUG (non modifica il valore, stampa solo se anomalo) ---
+        if val > 100:
+            logger.warning(f"[DEBUG PUNTEGGIO] Trovato valore > 100: {val} (Dato grezzo originale: '{valore}')")
+        # -------------------------------------------------------------------
+        
+        return val
     return None
 
 def parse_score(s):
