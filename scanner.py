@@ -1359,7 +1359,7 @@ def genera_pdf():
                     if f.name not in nomi_file_visti:
                         file_da_elaborare.append(f)
                         nomi_file_visti.add(f.name)
-                    break # Trovato il file per questo codice, passa al prossimo codice
+                    # Rimosso break: permette di aggiungere sia I che II Fascia se "Tutte le fasce"
 
         if not file_da_elaborare:
             logger.warning(f"Nessun file trovato per il codice: {codice}")
